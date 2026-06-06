@@ -204,7 +204,6 @@ int cmd_auth(char* progname, int argc, char** argv)
     return 0;
 }
 
-// $ client upload <server_address> <local_file> <remote_file> # sends file with token attached
 static int cmd_upload(char* progname, int argc, char** argv)
 {
     // TODO: 1. send UPLOAD_REQ message with token (if token not found, prompt the user to run auth and return 1)
@@ -220,7 +219,6 @@ static int cmd_upload(char* progname, int argc, char** argv)
     return 0;
 }
 
-// $ client download <server_address> <remote_file> [local_file] # downloads
 static int cmd_download(char* progname, int argc, char** argv)
 {
     // TODO: 1. send DOWNLOAD_REQ message with token (if token not found, prompt the user to run auth and return 1)
@@ -235,7 +233,6 @@ static int cmd_download(char* progname, int argc, char** argv)
     return 0;
 }
 
-// $ client rm <server_address> <remote_file>
 static int cmd_rm(char* progname, int argc, char** argv)
 {
     return 0;
