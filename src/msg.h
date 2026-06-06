@@ -29,7 +29,7 @@ typedef struct {
 } MsgHdr;
 
 typedef struct {
-    MsgHdr* hdr;
+    MsgHdr hdr;
     struct timespec rcvd_at;
     byte* data;
 } Message;
@@ -38,5 +38,7 @@ void msg_init(Message* self, MessageType type, byte* data, size_t length);
 
 ssize_t msg_send(Message* self, int sockfd);
 ssize_t msg_recv(int sockfd, Message* msg);
+
+const char* msg_type_to_str(MessageType type);
 
 #endif // !_PROTO_H

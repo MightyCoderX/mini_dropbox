@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -13,11 +14,44 @@
 
 void msg_init(Message* self, MessageType type, byte* data, size_t length)
 {
-    self->hdr->length = length;
-    self->hdr->type = type;
-    self->hdr->sent_at = (struct timespec) { 0, 0 };
+    self->hdr.length = length;
+    self->hdr.type = type;
+    self->hdr.sent_at = (struct timespec) { 0, 0 };
     self->rcvd_at = (struct timespec) { 0, 0 };
     self->data = data;
+}
+
+const char* msg_type_to_str(MessageType type)
+{
+    switch (type)
+    {
+    case AUTH_REQ:
+        return "AUTH_REQ";
+    case AUTH_OK:
+        return "AUTH_OK";
+    case AUTH_FAIL:
+        return "AUTH_FAIL";
+    case UPLOAD_REQ:
+        return "UPLOAD_REQ";
+    case UPLOAD_RES:
+        return "UPLOAD_RES";
+    case UPLOAD_FIN:
+        return "UPLOAD_FIN";
+    case DOWNLOAD_REQ:
+        return "DOWNLOAD_REQ";
+    case DOWNLOAD_RES:
+        return "DOWNLOAD_RES";
+    case DOWNLOAD_FIN:
+        return "DOWNLOAD_FIN";
+    case SEND_CHUNK:
+        return "SEND_CHUNK";
+    case CHUNK_OK:
+        return "CHUNK_OK";
+    case CHUNK_AGAIN:
+        return "CHUNK_AGAIN";
+    default:
+        assert(0 && "Unreachable");
+    }
 }
 
 static ssize_t send_all(int sockfd, const void* buf, size_t n)
@@ -40,9 +74,6 @@ static ssize_t send_all(int sockfd, const void* buf, size_t n)
         {
             return nbytes;
         }
-
-        assert(bytes_sent != 0); // somehow bytes couldn't be sent
-        // even tho there were bytes_left
 
         // increment bytes sent
         bytes_sent += nbytes;
@@ -103,7 +134,7 @@ static ssize_t recv_all(int sockfd, void* buf, size_t n)
 ssize_t msg_send(Message* self, int sockfd)
 {
     assert(self != NULL);
-    clock_gettime(CLOCK_REALTIME, &self->hdr->sent_at);
+    clock_gettime(CLOCK_REALTIME, &self->hdr.sent_at);
 
     ssize_t ret = send_all(sockfd, self, sizeof(MsgHdr));
     if (ret < 0)
@@ -111,7 +142,7 @@ ssize_t msg_send(Message* self, int sockfd)
         return -1;
     }
 
-    ret = send_all(sockfd, self->data, self->hdr->length);
+    ret = send_all(sockfd, self->data, self->hdr.length);
     if (ret < 0)
     {
         return -1;
@@ -122,9 +153,9 @@ ssize_t msg_send(Message* self, int sockfd)
 
 ssize_t msg_recv(int sockfd, Message* msg)
 {
-    assert(msg != NULL && msg->hdr != NULL);
+    assert(msg != NULL);
 
-    ssize_t ret = recv_all(sockfd, msg->hdr, sizeof(MsgHdr));
+    ssize_t ret = recv_all(sockfd, (void*)&msg->hdr, sizeof(MsgHdr));
     if (ret < 0)
     {
         return -1;
