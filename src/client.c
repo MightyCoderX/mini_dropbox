@@ -1,3 +1,5 @@
+#include <asm-generic/errno-base.h>
+#include <errno.h>
 #include <linux/limits.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -8,6 +10,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <uuid/uuid.h>
 
 #include "msg.h"
 #include "types.h"
@@ -167,15 +170,33 @@ int cmd_auth(char* progname, int argc, char** argv)
     }
 
     size_t chars_left = sizeof(tokfile_path) - len;
-    strncat(tokfile_path, "minidropbox.token", chars_left);
+    strncat(tokfile_path, "/minidropbox.token", chars_left);
 
-    printf("tokfile_path: %s\n", tokfile_path);
-
-    int fd = open(tokfile_path, O_CREAT | O_WRONLY);
-    if (fd == -1)
+    int fd = open(tokfile_path, O_CREAT | O_WRONLY | O_EXCL, 0755);
+    if (fd == -1 && errno != EEXIST)
     {
         perror("open");
         return 1;
+    }
+
+    char token[37];
+    if (errno == EEXIST)
+    {
+        fd = open(tokfile_path, O_RDONLY);
+        if (fd == -1)
+        {
+            perror("open");
+            return 1;
+        }
+        read(fd, token, sizeof(token));
+        uuid_parse(token, user.token);
+        fprintf(stderr, "Read token from file %s\n", tokfile_path);
+    }
+    else
+    {
+        uuid_unparse(user.token, token);
+        write(fd, token, sizeof(token));
+        fprintf(stderr, "Wrote token to file %s\n", tokfile_path);
     }
 
     Message msg = { 0 };
