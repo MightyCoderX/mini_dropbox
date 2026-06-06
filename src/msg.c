@@ -1,4 +1,3 @@
-
 #include <assert.h>
 #include <errno.h>
 #include <stddef.h>
@@ -25,30 +24,12 @@ const char* msg_type_to_str(MessageType type)
 {
     switch (type)
     {
-    case AUTH_REQ:
-        return "AUTH_REQ";
-    case AUTH_OK:
-        return "AUTH_OK";
-    case AUTH_FAIL:
-        return "AUTH_FAIL";
-    case UPLOAD_REQ:
-        return "UPLOAD_REQ";
-    case UPLOAD_RES:
-        return "UPLOAD_RES";
-    case UPLOAD_FIN:
-        return "UPLOAD_FIN";
-    case DOWNLOAD_REQ:
-        return "DOWNLOAD_REQ";
-    case DOWNLOAD_RES:
-        return "DOWNLOAD_RES";
-    case DOWNLOAD_FIN:
-        return "DOWNLOAD_FIN";
-    case SEND_CHUNK:
-        return "SEND_CHUNK";
-    case CHUNK_OK:
-        return "CHUNK_OK";
-    case CHUNK_AGAIN:
-        return "CHUNK_AGAIN";
+#define X(id, name)  \
+    case id:         \
+        return name;
+
+        MSGTYPES
+#undef X
     default:
         assert(0 && "Unreachable");
     }
