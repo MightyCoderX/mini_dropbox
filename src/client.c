@@ -202,12 +202,8 @@ int cmd_auth(char* progname, int argc, char** argv)
     Message msg = { 0 };
     msg_init(&msg, AUTH_REQ, user.token, sizeof(user.token));
 
-    int sockfd = connect_to_server(argv[1], 1234);
-    if (sockfd == -1)
-    {
-        perror("connect_to_server");
-        return 1;
-    }
+    int sockfd = connect_to_server(argv[0], 1234);
+    if (sockfd == -1) return 1;
 
     ssize_t res = msg_send(&msg, sockfd);
     if (res == -1)
