@@ -10,7 +10,7 @@ machine which accepts multiple parallel connections.
 
 ### Protocol Stack
 
-```txt
+```text
 +-----------------------------------+   +---------------------------+
 |         Control Messages          |   |       Data Messages       |
 |  (AUTH_*, DOWNLOAD_*, UPLOAD_*,   |   | (SEND_CHUNK, CHUNK_OK,    |
@@ -26,7 +26,7 @@ machine which accepts multiple parallel connections.
 
 ### Message Structure
 
-```txt
+```text
 |<---------- Message Header ---------->|
 +------------+------------+------------+---------...---------+
 |   Length   |    Type    |  Sent At   |        Data         |
