@@ -13,7 +13,6 @@
 #include <uuid/uuid.h>
 
 #include "msg.h"
-#include "types.h"
 #include "user.h"
 #include "util.h"
 
@@ -206,6 +205,9 @@ int cmd_auth(char* progname, int argc, char** argv)
 
 static int cmd_upload(char* progname, int argc, char** argv)
 {
+    (void)progname;
+    (void)argc;
+    (void)argv;
     // TODO: 1. send UPLOAD_REQ message with token (if token not found, prompt the user to run auth and return 1)
     // TODO: 2. if not ack (ex. user has no more space) print error and return 1
     // TODO: 3. calculate file checksum
@@ -221,6 +223,9 @@ static int cmd_upload(char* progname, int argc, char** argv)
 
 static int cmd_download(char* progname, int argc, char** argv)
 {
+    (void)progname;
+    (void)argc;
+    (void)argv;
     // TODO: 1. send DOWNLOAD_REQ message with token (if token not found, prompt the user to run auth and return 1)
     // TODO: 2. if not ack (ex. user has no more space) print error and return 1
     // TODO: 3. get FileInfo from ack message
@@ -233,7 +238,18 @@ static int cmd_download(char* progname, int argc, char** argv)
     return 0;
 }
 
+static int cmd_list(char* progname, int argc, char** argv)
+{
+    (void)progname;
+    (void)argc;
+    (void)argv;
+    return 0;
+}
+
 static int cmd_rm(char* progname, int argc, char** argv)
 {
+    (void)progname;
+    (void)argc;
+    (void)argv;
     return 0;
 }
