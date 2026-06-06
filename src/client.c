@@ -25,22 +25,11 @@ typedef struct {
     int (*func)(char* progname, int argc, char** argv);
 } Command;
 
-// $ client help [cmd]
 static int cmd_help(char* progname, int argc, char** argv);
-
-// $ client auth <server_address> # generates a token, saves it locally, and sends it to the server
 static int cmd_auth(char* progname, int argc, char** argv);
-
-// $ client upload <server_address> <local_file> <remote_file> # sends file with token attached
 static int cmd_upload(char* progname, int argc, char** argv);
-
-// $ client download <server_address> <remote_file> [local_file] # downloads
 static int cmd_download(char* progname, int argc, char** argv);
-
-// $ client list <server_address> [path] # downloads
 static int cmd_list(char* progname, int argc, char** argv);
-
-// $ client rm <server_address> <remote_file>
 static int cmd_rm(char* progname, int argc, char** argv);
 
 #define COMMANDS                                                                         \
