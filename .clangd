@@ -1,0 +1,7 @@
+If:
+  PathMatch: .*\.h
+
+CompileFlags:
+  Compiler: gcc
+  Remove: [-xobjective-c++-header, -xobjective-c++]
+  Add: [-xc-header, -std=gnu99]

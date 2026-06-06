@@ -1,0 +1,75 @@
+#include <arpa/inet.h>
+#include <assert.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+
+#include "util.h"
+
+const char* xdg_dir_to_str(XDGDir dir)
+{
+    switch (dir)
+    {
+    case XDG_CONFIG_HOME:
+        return "XDG_CONFIG_HOME";
+    case XDG_STATE_HOME:
+        return "XDG_STATE_HOME";
+    default:
+        assert(0 && "Unreachable");
+    }
+}
+
+int xdg_get_dir(XDGDir dir, char* out_path, size_t max_len)
+{
+    const char* xdg_env = getenv(xdg_dir_to_str(dir));
+
+    if (xdg_env && *xdg_env != '\0')
+    {
+        return snprintf(out_path, max_len, "%s", xdg_env);
+    }
+
+    const char* home_env = getenv("HOME");
+
+    if (home_env && *home_env != '\0')
+    {
+        return snprintf(out_path, max_len, "%s/.config", home_env);
+    }
+
+    return -1;
+}
+
+int connect_to_server(char* server_ip, short port)
+{
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0)
+    {
+        perror("socket failed");
+        return -1;
+    }
+
+    /*
+     * Configure address
+     */
+    struct sockaddr_in serv_addr;
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(port);
+
+    // Convert ip address to int
+    if (inet_pton(AF_INET, server_ip, &serv_addr.sin_addr) <= 0)
+    {
+        fprintf(stderr, "invalid or unsupported address '%s'\n", server_ip);
+        return -1;
+    }
+
+    /*
+     * Connect to the server
+     */
+    if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+    {
+        perror("connection failed");
+        return -1;
+    }
+
+    return sockfd;
+}

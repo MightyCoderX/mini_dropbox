@@ -1,0 +1,98 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage[lmargin=3cm,tmargin=2cm,bmargin=2cm]{geometry} % fix page margins being ridiculous
+\usepackage{fontspec}
+\usepackage[sfdefault]{roboto}
+\setmonofont{jetbrainsmono}[Scale=0.9]
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{parskip}
+\usepackage{float}
+\usepackage[italian]{babel}
+\usepackage{hyperref}
+
+
+\hypersetup{
+  colorlinks   = true, %Colours links instead of ugly boxes
+  urlcolor     = blue, %Colour for external hyperlinks
+  linkcolor    = black, %Colour of internal links
+  citecolor    = red %Colour of citations
+}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{preprocessor}{rgb}{0.5, 0, 0.5} % Purple for directives
+\definecolor{backcolour}{rgb}{0.92,0.92,0.95}
+
+\lstdefinelanguage{ColoredC}{
+    language=C,
+    morekeywords={socklen_t},
+    basicstyle=\small\ttfamily,
+    backgroundcolor=\color{backcolour},
+    directivestyle=\color{preprocessor},
+    keywordstyle=\color{purple}\bfseries, % Style for standard C keywords (if, for, etc.)
+    commentstyle=\color{codegray},
+    stringstyle=\color{codegreen},
+}
+
+\lstset{
+    language=ColoredC,
+    extendedchars=true,
+    upquote=true,
+    xleftmargin=6pt,
+    frame=single,
+    framesep=5pt,
+    firstnumber=last,
+    breakatwhitespace=true,
+    breaklines=true,
+    postbreak=\space\space\space\space,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numberstyle=\ttfamily,
+    numbersep=10pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=4,
+}
+
+% Force firstnumber to always equal firstline automatically
+\makeatletter
+\lst@AddToHook{PreInit}{%
+  \ifx\lst@firstline\@undefined\else
+    \let\lst@firstnumber\lst@firstline
+  \fi
+}
+\makeatother
+
+\title{TITLE \\ Hands-On N}
+\author{Mattia Cardile - 571075}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+\section{Introduzione}
+
+\section{Esercizio 1}
+\subsection{Risposta 1}
+\subsection{Risposta 2}
+\subsection{Risposta 3}
+\subsection{Risposta 4}
+\subsection{Risposta 5}
+\subsection{Risposta 6}
+
+\section{Presentazione risultati}
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=1\linewidth]{assets/}
+%     \caption{}
+%     \label{fig:}
+% \end{figure}
+
+\section{Discussione dei risultati}
+
+\end{document}
