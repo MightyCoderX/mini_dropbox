@@ -45,7 +45,7 @@ int connect_to_server(char* server_ip, short port)
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
     {
-        perror("socket failed");
+        perror("socket");
         return -1;
     }
 
@@ -68,7 +68,7 @@ int connect_to_server(char* server_ip, short port)
      */
     if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
     {
-        perror("connection failed");
+        perror("connect");
         return -1;
     }
 
