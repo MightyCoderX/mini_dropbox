@@ -55,6 +55,7 @@ in the [Protocol Stack](#protocol-stack) section.
 
 ### Server
 
+- [ ] Accept and add client tokens to local file in /etc
 - [ ] Support multiple parallel transfers
 - [ ] FSM to handle states (i.e. REQUESTING,TRANSFERING,FINISHED)
 - [ ] Thread pool, keeping threads inactive via condition variables
