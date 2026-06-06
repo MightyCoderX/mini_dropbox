@@ -35,7 +35,8 @@ machine which accepts multiple parallel connections.
 ```
 
 _Data_ here is the content of one of the types of messages, the one
-specified by the _Type_ field, as specified at [Protocol Stack](#protocol-stack)
+specified by the _Type_ field, as specified above
+in the [Protocol Stack](#protocol-stack) section.
 
 ## Features
 
