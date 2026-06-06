@@ -34,6 +34,9 @@ static int cmd_upload(char* progname, int argc, char** argv);
 // $ client download <server_address> <remote_file> [local_file] # downloads
 static int cmd_download(char* progname, int argc, char** argv);
 
+// $ client list <server_address> [path] # downloads
+static int cmd_list(char* progname, int argc, char** argv);
+
 // $ client rm <server_address> <remote_file>
 static int cmd_rm(char* progname, int argc, char** argv);
 
@@ -42,6 +45,7 @@ static int cmd_rm(char* progname, int argc, char** argv);
     X(CMD_AUTH, "auth", "<server_address>", cmd_auth)                                    \
     X(CMD_DLOD, "upload", "<server_address> <local_file>  [remote_file]", cmd_upload)    \
     X(CMD_ULOD, "download", "<server_address> <remote_file> [local_file]", cmd_download) \
+    X(CMD_ULOD, "list", "<server_address> [path]", cmd_list)                             \
     X(CMD_RMFI, "rm", "<server_address> <remote_file>", cmd_rm)
 
 enum {

@@ -15,6 +15,8 @@ typedef enum {
     DOWNLOAD_REQ,
     DOWNLOAD_RES,
     DOWNLOAD_FIN,
+    LIST_REQ,
+    LIST_RES,
     SEND_CHUNK,
     CHUNK_OK,
     CHUNK_AGAIN,
