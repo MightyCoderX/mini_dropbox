@@ -161,7 +161,9 @@ ssize_t msg_recv(int sockfd, Message* msg)
         return -1;
     }
 
-    ret = recv_all(sockfd, msg->data, msg->hdr->length);
+    msg->data = malloc(msg->hdr.length);
+
+    ret = recv_all(sockfd, msg->data, msg->hdr.length);
     if (ret < 0)
     {
         return -1;
