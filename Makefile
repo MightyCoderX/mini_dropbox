@@ -7,7 +7,7 @@ INCLUDE := src
 CC       := gcc
 CPPFLAGS := -I$(INCLUDE)
 CFLAGS   := -std=gnu99
-LDFLAGS  := -lrt -pthread -luuid
+LDFLAGS  := -lrt -pthread -luuid -lm
 
 # Warnings
 CFLAGS += -Wall -Wextra -pedantic

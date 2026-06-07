@@ -5,18 +5,24 @@
 #include <stdio.h>
 #include <time.h>
 
+#include "types.h"
+
 #define CHUNK_SIZE 4096
 
 typedef struct {
     size_t seq;
-    size_t start;
-    size_t end;
+    size_t start_byte;
+    size_t end_byte;
     size_t length;
-    unsigned char* data;
+} ChunkHdr;
+
+typedef struct {
+    ChunkHdr hdr;
+    byte* data;
 } Chunk;
 
-void chunk_init(size_t start, size_t end);
+void chunk_init(Chunk* self, byte* start, size_t length);
 ssize_t chunk_send(Chunk* self, int sockfd);
-ssize_t chunk_recv(Chunk* self, int sockfd);
+ssize_t chunk_recv(int sockfd, Chunk* self);
 
 #endif // !CHUNK_PROTO_H

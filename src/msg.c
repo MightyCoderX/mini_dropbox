@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 
 #include "msg.h"
+#include "types.h"
 
 void msg_init(Message* self, MessageType type, byte* data, size_t length)
 {
@@ -35,81 +36,67 @@ const char* msg_type_to_str(MessageType type)
     }
 }
 
-static ssize_t send_all(int sockfd, const void* buf, size_t n)
+static int send_all(int sockfd, const void* buf, size_t len, int flags)
 {
-    assert(n > 0);
+    assert(buf != NULL && len > 0);
 
     // can't use void* for pointer arithmetic, so we make an alias
-    const byte* buf_pos = buf;
-    size_t bytes_sent = 0;
-    size_t bytes_left;
+    const byte* buf_ptr = buf;
+    size_t bytes_left = len;
 
-    do
+    while (bytes_left > 0)
     {
-        bytes_left = n - bytes_sent;
-        ssize_t nbytes = send(sockfd, buf_pos, bytes_left, 0);
+        ssize_t nbytes = send(sockfd, buf_ptr, bytes_left, flags | MSG_NOSIGNAL);
 
-        // return immediately if send failed, without changing errno
-        // so the caller can handle it
         if (nbytes < 0)
         {
-            return nbytes;
+            // retry if interrupted by signal
+            if (errno == EINTR) continue;
+
+            // return immediately if send failed, without changing errno
+            return -1;
         }
 
-        // increment bytes sent
-        bytes_sent += nbytes;
-        // move pointer to next position
-        buf_pos += nbytes;
-    } while (bytes_left);
+        if (nbytes == 0) return -2;
 
-    return bytes_sent;
+        bytes_left -= nbytes;
+        buf_ptr += nbytes;
+    }
+
+    return 0;
 }
 
-static ssize_t recv_all(int sockfd, void* buf, size_t n)
+static int recv_all(int sockfd, void* buf, size_t len)
 {
-    assert(n > 0);
+    assert(buf != NULL && len > 0);
+    byte* buf_ptr = buf;
 
-    // can't use void* for pointer arithmetic, so we make an alias
-    byte* buf_pos = buf;
-    size_t bytes_rcvd = 0;
-
-    // initializing this here in case 'n' is 0 and
-    // the loop body doesn't execute
-    ssize_t nbytes = 0;
+    ssize_t bytes_left = len;
 
     // loop until 'n' bytes are received
-    while (bytes_rcvd < n)
+    while (bytes_left > 0)
     {
-        // calculate number of bytes left to recv
-        size_t bytes_left = n - bytes_rcvd;
-        // try to recv all of the bytes left
-        nbytes = recv(sockfd, buf_pos, bytes_left, 0);
+        // try to recv all of the bytes
+        // MSG_WAITALL tries to read everything but
+        // it may still be interrupted by signals
+        ssize_t nbytes = recv(sockfd, buf_ptr, bytes_left, MSG_WAITALL);
 
         // if recv fails, or reads 0 bytes, which means the
         // connection was closed, break out of the loop
-        if (nbytes <= 0)
+        if (nbytes < 0)
         {
-            break;
+            if (errno == EINTR) continue;
+
+            return -1;
         }
 
-        bytes_rcvd += nbytes;
-        buf_pos += nbytes;
+        if (nbytes == 0) return -2;
+
+        bytes_left -= nbytes;
+        buf_ptr += nbytes;
     }
 
-    if (nbytes == 0)
-    {
-        errno = ECONNRESET;
-        return -1;
-    }
-
-    // if recv failed return -1, and leave errno untouched
-    // to pass it to the caller
-    if (nbytes < 0)
-    {
-        return -1;
-    }
-
-    return bytes_rcvd;
+    return 0;
 }
 
 ssize_t msg_send(Message* self, int sockfd)
@@ -117,13 +104,13 @@ ssize_t msg_send(Message* self, int sockfd)
     assert(self != NULL);
     clock_gettime(CLOCK_REALTIME, &self->hdr.sent_at);
 
-    ssize_t ret = send_all(sockfd, self, sizeof(MsgHdr));
+    int ret = send_all(sockfd, self, sizeof(MessageHdr), MSG_MORE);
     if (ret < 0)
     {
         return -1;
     }
 
-    ret = send_all(sockfd, self->data, self->hdr.length);
+    ret = send_all(sockfd, self->data, self->hdr.length, 0);
     if (ret < 0)
     {
         return -1;
@@ -136,19 +123,18 @@ ssize_t msg_recv(int sockfd, Message* msg)
 {
     assert(msg != NULL);
 
-    ssize_t ret = recv_all(sockfd, (void*)&msg->hdr, sizeof(MsgHdr));
-    if (ret < 0)
+    int ret = recv_all(sockfd, (void*)&msg->hdr, sizeof(MessageHdr));
+
+    if (ret < 0) return ret;
+
+    if (msg->hdr.type == CONTROL)
     {
-        return -1;
     }
 
     msg->data = malloc(msg->hdr.length);
 
     ret = recv_all(sockfd, msg->data, msg->hdr.length);
-    if (ret < 0)
-    {
-        return -1;
-    }
+    if (ret < 0) return ret;
 
     clock_gettime(CLOCK_REALTIME, &msg->rcvd_at);
 
