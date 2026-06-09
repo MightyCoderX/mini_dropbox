@@ -206,7 +206,7 @@ int cmd_auth(char* progname, int argc, char** argv)
     int sockfd = connect_to_server(argv[0], 1234);
     if (sockfd == -1) return 1;
 
-    ssize_t res = msg_send(&msg, sockfd);
+    ssize_t res = msg_send(&msg, sockfd, NULL, 0);
     if (res == -1)
     {
         perror("msg_send");
@@ -221,6 +221,13 @@ static int cmd_upload(char* progname, int argc, char** argv)
     (void)progname;
     (void)argc;
     (void)argv;
+
+    int sockfd = connect_to_server(argv[0], 1234);
+    if (sockfd == -1) return 1;
+
+    Message msg;
+    msg_init(&msg, UPLOAD_REQ, NULL, 0);
+    msg_send(&msg, sockfd, NULL, 0);
     // TODO: 1. send UPLOAD_REQ message with token (if token not found, prompt the user to run auth and return 1)
     // TODO: 2. if not ack (ex. user has no more space) print error and return 1
     // TODO: 3. calculate file checksum
@@ -239,6 +246,13 @@ static int cmd_download(char* progname, int argc, char** argv)
     (void)progname;
     (void)argc;
     (void)argv;
+
+    int sockfd = connect_to_server(argv[0], 1234);
+    if (sockfd == -1) return 1;
+
+    Message msg;
+    msg_init(&msg, DOWNLOAD_REQ, NULL, 0);
+    msg_send(&msg, sockfd, NULL, 0);
     // TODO: 1. send DOWNLOAD_REQ message with token (if token not found, prompt the user to run auth and return 1)
     // TODO: 2. if not ack (ex. user has no more space) print error and return 1
     // TODO: 3. get FileInfo from ack message
@@ -256,6 +270,13 @@ static int cmd_list(char* progname, int argc, char** argv)
     (void)progname;
     (void)argc;
     (void)argv;
+
+    int sockfd = connect_to_server(argv[0], 1234);
+    if (sockfd == -1) return 1;
+
+    Message msg;
+    msg_init(&msg, LIST_REQ, NULL, 0);
+    msg_send(&msg, sockfd, NULL, 0);
     return 0;
 }
 
@@ -264,5 +285,12 @@ static int cmd_rm(char* progname, int argc, char** argv)
     (void)progname;
     (void)argc;
     (void)argv;
+
+    int sockfd = connect_to_server(argv[0], 1234);
+    if (sockfd == -1) return 1;
+
+    Message msg;
+    msg_init(&msg, REMOVE_REQ, NULL, 0);
+    msg_send(&msg, sockfd, NULL, 0);
     return 0;
 }
