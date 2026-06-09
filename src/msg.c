@@ -53,10 +53,14 @@ static int send_all(int sockfd, const void* buf, size_t len, int flags)
             // retry if interrupted by signal
             if (errno == EINTR) continue;
 
-            // return immediately if send failed, without changing errno
+            // return immediately if send failed, leaving errno untouched
             return -1;
         }
 
+        // highly unusual for blocking socket, but if it ever
+        // happens it means the kernel can't accept data
+        // so we treat it as a disconnection,
+        // can only happen if len is 0 but the assert prevents that
         if (nbytes == 0) return -2;
 
         bytes_left -= nbytes;
@@ -81,8 +85,7 @@ static int recv_all(int sockfd, void* buf, size_t len)
         // it may still be interrupted by signals
         ssize_t nbytes = recv(sockfd, buf_ptr, bytes_left, MSG_WAITALL);
 
-        // if recv fails, or reads 0 bytes, which means the
-        // connection was closed, break out of the loop
+        // connection was terminated abruptly by an actual error
         if (nbytes < 0)
         {
             if (errno == EINTR) continue;
@@ -90,6 +93,7 @@ static int recv_all(int sockfd, void* buf, size_t len)
             return -1;
         }
 
+        // peer disconnected gracefully, no errno
         if (nbytes == 0) return -2;
 
         bytes_left -= nbytes;
