@@ -12,13 +12,14 @@
 #include "msg.h"
 #include "types.h"
 
-void msg_init(Message* self, MessageType type, byte* data, size_t length)
+void msg_init(Message* self, MessageType type, byte* payload, size_t length)
 {
     self->hdr.length = length;
     self->hdr.type = type;
     self->hdr.sent_at = (struct timespec) { 0, 0 };
     self->rcvd_at = (struct timespec) { 0, 0 };
-    self->data = data;
+    self->payload = payload;
+    self->payload_len = length;
 }
 
 const char* msg_type_to_str(MessageType type)
@@ -103,41 +104,42 @@ static int recv_all(int sockfd, void* buf, size_t len)
     return 0;
 }
 
-ssize_t msg_send(Message* self, int sockfd)
+int msg_send(Message* self, int sockfd, byte* payload_hdr, size_t payload_hdr_len)
 {
     assert(self != NULL);
     clock_gettime(CLOCK_REALTIME, &self->hdr.sent_at);
 
+    if (payload_hdr) self->hdr.length += payload_hdr_len;
+
+    // we use MSG_MORE to tell the kernel that there is more coming
+    // so it can fill the segment with before sending it
     int ret = send_all(sockfd, self, sizeof(MessageHdr), MSG_MORE);
-    if (ret < 0)
+    if (ret < 0) return ret;
+
+    if (payload_hdr)
     {
-        return -1;
+        ret = send_all(sockfd, payload_hdr, payload_hdr_len, MSG_MORE);
+        if (ret < 0) return ret;
     }
 
-    ret = send_all(sockfd, self->data, self->hdr.length, 0);
-    if (ret < 0)
-    {
-        return -1;
-    }
+    ret = send_all(sockfd, self->payload, self->payload_len, 0);
+    if (ret < 0) return ret;
 
     return 0;
 }
 
-ssize_t msg_recv(int sockfd, Message* msg)
+int msg_recv(int sockfd, Message* msg, size_t maxlen)
 {
     assert(msg != NULL);
 
     int ret = recv_all(sockfd, (void*)&msg->hdr, sizeof(MessageHdr));
-
     if (ret < 0) return ret;
 
-    if (msg->hdr.type == CONTROL)
-    {
-    }
+    if (msg->hdr.length > maxlen) return -3;
 
-    msg->data = malloc(msg->hdr.length);
+    msg->payload = malloc(msg->hdr.length);
 
-    ret = recv_all(sockfd, msg->data, msg->hdr.length);
+    ret = recv_all(sockfd, msg->payload, msg->hdr.length);
     if (ret < 0) return ret;
 
     clock_gettime(CLOCK_REALTIME, &msg->rcvd_at);
