@@ -18,7 +18,22 @@
 
 #define streq(str1, str2) (strcmp(str1, str2) == 0)
 
+#define COMMANDS                                                                         \
+    X(CMD_HELP, "help", "[command]", cmd_help)                                           \
+    X(CMD_AUTH, "auth", "<server_address>", cmd_auth)                                    \
+    X(CMD_DLOD, "upload", "<server_address> <local_file>  [remote_file]", cmd_upload)    \
+    X(CMD_ULOD, "download", "<server_address> <remote_file> [local_file]", cmd_download) \
+    X(CMD_LIST, "list", "<server_address> [path]", cmd_list)                             \
+    X(CMD_RMFI, "rm", "<server_address> <remote_file>", cmd_rm)
+
+typedef enum {
+#define X(id, name, usage, func) id,
+    COMMANDS
+#undef X
+} CommandID;
+
 typedef struct {
+    CommandID id;
     const char* name;
     const char* usage;
     int (*func)(char* progname, int argc, char** argv);
@@ -31,22 +46,8 @@ static int cmd_download(char* progname, int argc, char** argv);
 static int cmd_list(char* progname, int argc, char** argv);
 static int cmd_rm(char* progname, int argc, char** argv);
 
-#define COMMANDS                                                                         \
-    X(CMD_HELP, "help", "[command]", cmd_help)                                           \
-    X(CMD_AUTH, "auth", "<server_address>", cmd_auth)                                    \
-    X(CMD_DLOD, "upload", "<server_address> <local_file>  [remote_file]", cmd_upload)    \
-    X(CMD_ULOD, "download", "<server_address> <remote_file> [local_file]", cmd_download) \
-    X(CMD_LIST, "list", "<server_address> [path]", cmd_list)                             \
-    X(CMD_RMFI, "rm", "<server_address> <remote_file>", cmd_rm)
-
-enum {
-#define X(id, name, usage, func) id,
-    COMMANDS
-#undef X
-};
-
 static Command commands[] = {
-#define X(id, name, usage, func) { name, usage, func },
+#define X(id, name, usage, func) { id, name, usage, func },
     COMMANDS
 #undef X
 };
@@ -79,6 +80,18 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    switch (cmd->id)
+    {
+    case CMD_HELP:
+        break;
+    case CMD_AUTH:
+    case CMD_DLOD:
+    case CMD_ULOD:
+    case CMD_LIST:
+    case CMD_RMFI:
+        // TODO: ideally open socket here for commands that need it
+        break;
+    }
     return cmd->func(argv[0], argc - 2, argv + 2);
 }
 
