@@ -122,7 +122,10 @@ int msg_send(Message* self, int sockfd, byte* payload_hdr, size_t payload_hdr_le
         if (ret < 0) return ret;
     }
 
-    ret = send_all(sockfd, self->payload, self->payload_len, 0);
+    if (self->payload)
+    {
+        ret = send_all(sockfd, self->payload, self->payload_len, 0);
+    }
     if (ret < 0) return ret;
 
     return 0;
@@ -137,10 +140,13 @@ int msg_recv(int sockfd, Message* msg, size_t maxlen)
 
     if (msg->hdr.length > maxlen) return -3;
 
-    msg->payload = malloc(msg->hdr.length);
+    if (msg->hdr.length > 0)
+    {
+        msg->payload = malloc(msg->hdr.length);
 
-    ret = recv_all(sockfd, msg->payload, msg->hdr.length);
-    if (ret < 0) return ret;
+        ret = recv_all(sockfd, msg->payload, msg->hdr.length);
+        if (ret < 0) return ret;
+    }
 
     clock_gettime(CLOCK_REALTIME, &msg->rcvd_at);
 
