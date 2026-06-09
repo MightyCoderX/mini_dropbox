@@ -131,6 +131,34 @@ int msg_send(Message* self, int sockfd, byte* payload_hdr, size_t payload_hdr_le
     return 0;
 }
 
+int msg_recv_header(int sockfd, Message* msg)
+{
+    assert(msg != NULL);
+
+    int ret = recv_all(sockfd, (void*)&msg->hdr, sizeof(MessageHdr));
+    if (ret < 0) return ret;
+
+    return 0;
+}
+
+int msg_recv_payload(int sockfd, Message* msg, size_t maxlen)
+{
+    assert(msg != NULL);
+
+    if (msg->hdr.length > maxlen) return -3;
+
+    if (msg->hdr.length > 0)
+    {
+        msg->payload = malloc(msg->hdr.length);
+
+        int ret = recv_all(sockfd, msg->payload, msg->hdr.length);
+        if (ret < 0) return ret;
+    }
+
+    clock_gettime(CLOCK_REALTIME, &msg->rcvd_at);
+
+    return 0;
+}
 int msg_recv(int sockfd, Message* msg, size_t maxlen)
 {
     assert(msg != NULL);

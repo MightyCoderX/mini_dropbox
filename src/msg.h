@@ -44,7 +44,7 @@ typedef struct {
 } Message;
 
 /**
- * Initialize the Message struct
+ * Initialize the Message struct by pointer
  */
 void msg_init(Message* self, MessageType type, byte* payload, size_t length);
 
@@ -62,7 +62,35 @@ void msg_init(Message* self, MessageType type, byte* payload, size_t length);
 int msg_send(Message* self, int sockfd, byte* payload_hdr, size_t payload_hdr_len);
 
 /*
- * Recieve a Message structure from a TCP socket
+ * Receive only the message header in an existing Message
+ * structure from a TCP socket, to decide what to do based on
+ * the type
+ *
+ * Returns:
+ *   0 on success
+ *  -1 when a system error happens (errno is set)
+ *  -2 when a client gracefully terminates the connection
+ */
+int msg_recv_header(int sockfd, Message* msg);
+
+/*
+ * Receive only the payload in an existing Message structure
+ * on which msg_recv_header was already called
+ *
+ * Warning: Must only be called be called after msg_recv_header()!
+ *      on the same message structure
+ *
+ * Returns:
+ *   0 on success
+ *  -1 when a system error happens (errno is set)
+ *  -2 when a client gracefully terminates the connection
+ *  -3 when the len received in the message header is bigger than `maxlen` to avoid DoS attacks
+ */
+int msg_recv_payload(int sockfd, Message* msg, size_t maxlen);
+
+/*
+ * Receive a full Message structure (header and payload)
+ * from a TCP socket
  *
  * Returns:
  *   0 on success
