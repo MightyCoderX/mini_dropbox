@@ -18,15 +18,16 @@
 
 #include "session.h"
 
-typedef struct {
+typedef struct Worker Worker;
+struct Worker {
     int id;
     pthread_t thread;
     sem_t work_sem;
     Session session;
     bool terminated;
     int sockfd;
-    void (*func)(int sockfd);
-} Worker;
+    void (*func)(Worker* w);
+};
 
 void* worker(void* arg)
 {
@@ -46,7 +47,7 @@ void* worker(void* arg)
             fprintf(stderr, "[worker #%d] missing task function, going to sleep!\n", w->id);
             continue;
         }
-        w->func(w->sockfd);
+        w->func(w);
     }
 
     free(w);
@@ -54,22 +55,82 @@ void* worker(void* arg)
     return NULL;
 }
 
-void task_func(int sockfd)
+void handle_auth(Worker* w, Message* msg)
 {
-    Message msg;
-    msg_recv(sockfd, &msg);
-
+    (void)w;
     char token[37];
-    uuid_unparse(msg.data, token);
+    uuid_unparse(msg->payload, token);
 
     printf("Received message: \n");
-    printf("    type: %s\n", msg_type_to_str(msg.hdr.type));
-    printf("    length: %zu\n", msg.hdr.length);
-    printf("    sent_at: %zus, %zuns\n", msg.hdr.sent_at.tv_sec, msg.hdr.sent_at.tv_nsec);
+    printf("    type: %s\n", msg_type_to_str(msg->hdr.type));
+    printf("    length: %zu\n", msg->hdr.length);
+    printf("    sent_at: %zus, %zuns\n", msg->hdr.sent_at.tv_sec, msg->hdr.sent_at.tv_nsec);
+    printf("    rcvd_at: %zus, %zuns\n", msg->rcvd_at.tv_sec, msg->rcvd_at.tv_nsec);
     printf("    data: %s\n", token);
+}
 
-    while (true)
-        ;
+void handle_upload(Worker* w, Message* msg)
+{
+    (void)w;
+    (void)msg;
+    fprintf(stderr, "[handle_upload] received upload req\n");
+}
+
+void handle_download(Worker* w, Message* msg)
+{
+    (void)w;
+    (void)msg;
+    fprintf(stderr, "[handle_download] received download req\n");
+}
+
+void handle_list(Worker* w, Message* msg)
+{
+    (void)w;
+    (void)msg;
+    fprintf(stderr, "[handle_list] received list req\n");
+}
+
+void handle_remove(Worker* w, Message* msg)
+{
+    (void)w;
+    (void)msg;
+    fprintf(stderr, "[handle_remove] received remove req\n");
+}
+
+void handle_client(Worker* w)
+{
+    Message msg;
+    msg_recv(w->sockfd, &msg, 16);
+    switch (msg.hdr.type)
+    {
+    case AUTH_REQ:
+        handle_auth(w, &msg);
+        break;
+    case UPLOAD_REQ:
+        handle_upload(w, &msg);
+        break;
+    case DOWNLOAD_REQ:
+        handle_download(w, &msg);
+        break;
+    case LIST_REQ:
+        break;
+    case REMOVE_REQ:
+        handle_remove(w, &msg);
+        break;
+    case AUTH_OK:
+    case AUTH_FAIL:
+    case UPLOAD_RES:
+    case UPLOAD_FIN:
+    case DOWNLOAD_RES:
+    case DOWNLOAD_FIN:
+    case LIST_RES:
+    case REMOVE_OK:
+    case REMOVE_FAIL:
+    case SEND_CHUNK:
+    case CHUNK_OK:
+    case CHUNK_AGAIN:
+        break;
+    }
 }
 
 Worker* workers[NTHREADS];
@@ -166,8 +227,9 @@ int main(void)
             continue;
         }
 
+        // TODO: actually assign a free worker here instead of the same hard-coded one
         workers[0]->sockfd = sockfd;
-        workers[0]->func = task_func;
+        workers[0]->func = handle_client;
         sem_post(&workers[0]->work_sem);
         printf("New client connected, assigned worker thread %lu\n", 0UL);
     }
