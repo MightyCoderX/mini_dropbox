@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <stdlib.h>
 
 #include "chunk.h"
 #include "msg.h"
@@ -16,12 +15,9 @@ ssize_t chunk_send(Chunk* self, int sockfd)
 {
     Message msg;
 
-    size_t bufsize = sizeof(ChunkHdr) + CHUNK_SIZE;
-    byte* buf = malloc(bufsize);
+    msg_init(&msg, SEND_CHUNK, self->data, self->hdr.length);
 
-    msg_init(&msg, SEND_CHUNK, buf, bufsize);
-
-    msg_send(&msg, sockfd);
+    msg_send(&msg, sockfd, (byte*)&self->hdr, sizeof(self->hdr));
 
     return self->hdr.length;
 }
