@@ -7,7 +7,7 @@ INCLUDE := src
 CC       := gcc
 CPPFLAGS := -I$(INCLUDE)
 CFLAGS   := -std=gnu99
-LDFLAGS  := -lrt -pthread -luuid -lm
+LDFLAGS  := -lrt -pthread -luuid -lm -lcrypto
 
 # Warnings
 CFLAGS += -Wall -Wextra -pedantic
@@ -43,14 +43,15 @@ $(BUILD)/%.o: $(SRC)/%.c | $(BUILD)
 $(BUILD):
 	mkdir -p $@
 
-debug: CFLAGS+=-g -O0
+debug: CFLAGS+=-g -O0 -fsanitize=undefined
+debug: LDFLAGS+=-fsanitize=undefined
 debug: $(TARGETS)
 
 # separate sanitized target to avoid conflicts
 # with valgrind on debug target
-# sanitized: LDFLAGS+=-fsanitize=thread
-# sanitized: CFLAGS+=-fsanitize=thread
-# sanitized: debug
+sanitized: LDFLAGS+=-fsanitize=address
+sanitized: CFLAGS+=-fsanitize=address
+sanitized: debug
 
 clean:
 	rm -rf client server $(BUILD)
