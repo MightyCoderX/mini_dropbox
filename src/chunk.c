@@ -1,21 +1,41 @@
 #include <assert.h>
+#include <stddef.h>
+#include <stdlib.h>
 
 #include "chunk.h"
 #include "msg.h"
+#include "session.h"
 
-Chunk chunk(ChunkHdr hdr, byte* data)
+Chunk* chunk_next(FileInfo* info)
 {
-    return (Chunk) {
-        hdr,
-        data,
-    };
+    static FileInfo* s_info;
+    static size_t byte_index;
+    static int fd;
+
+    if (info != NULL)
+    {
+        s_info = info;
+        byte_index = 0;
+        fd = 0;
+        return NULL;
+    }
+
+    // TODO: create chunk, increase byte index by CHUNK_SIZE, return chunk
+
+    return NULL;
+}
+
+void chunk_init(Chunk* self, ChunkHdr hdr, byte* data, size_t length)
+{
+    self->hdr = hdr;
+    checksum(data, length, hdr.checksum);
 }
 
 ssize_t chunk_send(Chunk* self, int sockfd)
 {
     Message msg;
 
-    msg_init(&msg, SEND_CHUNK, self->data, self->hdr.length);
+    msg_init(&msg, MSGTYPE_SEND_CHUNK, self->data, self->hdr.length);
 
     msg_send(&msg, sockfd, (byte*)&self->hdr, sizeof(self->hdr));
 
