@@ -1,6 +1,3 @@
-#include <asm-generic/errno-base.h>
-#include <errno.h>
-#include <linux/limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -10,11 +7,15 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <errno.h>
+#include <linux/limits.h>
 #include <uuid/uuid.h>
 
 #include "msg.h"
-#include "user.h"
+#include "session.h"
 #include "util.h"
+
+#define DEFAULT_SERVER_IP "127.0.0.1"
 
 #define streq(str1, str2) (strcmp(str1, str2) == 0)
 
@@ -63,16 +64,33 @@ static Command* cmd_get(const char* name)
 }
 
 static void print_help(char* progname);
+void print_cmd_usage(char* progname, CommandID id);
+
+static char server_ip[INET_ADDRSTRLEN] = DEFAULT_SERVER_IP;
 
 int main(int argc, char** argv)
 {
-    if (argc < 2)
+    int opt;
+    while ((opt = getopt(argc, argv, "s:")) != -1)
     {
-        print_help(argv[0]);
-        return 0;
+        switch (opt)
+        {
+        case 's':
+            strcpy(server_ip, optarg);
+            break;
+        default:
+            print_help(argv[0]);
+            return 1;
+        }
     }
 
-    Command* cmd = cmd_get(argv[1]);
+    if (optind >= argc)
+    {
+        print_help(argv[0]);
+        return 1;
+    }
+
+    Command* cmd = cmd_get(argv[optind]);
 
     if (!cmd)
     {
@@ -92,12 +110,12 @@ int main(int argc, char** argv)
         // TODO: ideally open socket here for commands that need it
         break;
     }
-    return cmd->func(argv[0], argc - 2, argv + 2);
+    return cmd->func(argv[0], argc - (optind + 1), &argv[optind + 1]);
 }
 
 static void print_help(char* progname)
 {
-    fprintf(stderr, "\nUsage: %s COMMAND\n\n", progname);
+    fprintf(stderr, "\nUsage: %s [-s SERVER_IP] COMMAND\n\n", progname);
     size_t max_len = strlen(commands[0].name);
 
     size_t cmd_count = sizeof(commands) / sizeof(*commands);
@@ -130,6 +148,12 @@ static void print_help(char* progname)
     fprintf(stderr, "\n");
 }
 
+void print_cmd_usage(char* progname, CommandID id)
+{
+    Command cmd = commands[id];
+    fprintf(stderr, "Usage: %s %s %s\n", progname, cmd.name, cmd.usage);
+}
+
 int cmd_help(char* progname, int argc, char** argv)
 {
     if (argc < 1)
@@ -146,21 +170,19 @@ int cmd_help(char* progname, int argc, char** argv)
         return 1;
     }
 
-    fprintf(stderr, "Usage: %s %s %s\n", progname, cmd->name, cmd->usage);
+    print_cmd_usage(progname, cmd->id);
 
     return 0;
 }
 
 int cmd_auth(char* progname, int argc, char** argv)
 {
-    if (argc < 1)
-    {
-        cmd_help(progname, 1, argv - 1);
-        return 1;
-    }
+    (void)argc;
+    (void)progname;
+    (void)argv;
 
-    User user = { 0 };
-    user_init(&user);
+    Message msg = { 0 };
+    msg_init(&msg, MSGTYPE_AUTH_REQ, NULL, 0);
 
     char tokfile_path[PATH_MAX];
     int len = xdg_get_dir(XDG_STATE_HOME, tokfile_path, sizeof(tokfile_path));
@@ -180,7 +202,7 @@ int cmd_auth(char* progname, int argc, char** argv)
         return 1;
     }
 
-    char token[37];
+    char token_str[37];
     if (errno == EEXIST)
     {
         fd = open(tokfile_path, O_RDONLY);
@@ -189,29 +211,33 @@ int cmd_auth(char* progname, int argc, char** argv)
             perror("open");
             return 1;
         }
-        read(fd, token, sizeof(token));
-        uuid_parse(token, user.token);
+        read(fd, token_str, sizeof(token_str));
+        uuid_parse(token_str, msg.hdr.token);
         fprintf(stderr, "Read token from file %s\n", tokfile_path);
     }
     else
     {
-        uuid_unparse(user.token, token);
-        write(fd, token, sizeof(token));
+        uuid_generate(msg.hdr.token);
+        uuid_unparse(msg.hdr.token, token_str);
+        write(fd, token_str, sizeof(token_str));
         fprintf(stderr, "Wrote token to file %s\n", tokfile_path);
     }
 
-    Message msg = { 0 };
-    msg_init(&msg, AUTH_REQ, user.token, sizeof(user.token));
-
-    int sockfd = connect_to_server(argv[0], 1234);
+    int sockfd = connect_to_server(server_ip, 1234);
     if (sockfd == -1) return 1;
 
-    ssize_t res = msg_send(&msg, sockfd, NULL, 0);
+    int res = msg_send(&msg, sockfd, NULL, 0);
     if (res == -1)
     {
         perror("msg_send");
         return 1;
     }
+
+    msg.hdr = (MessageHdr) { 0 };
+    msg.payload_len = 0;
+
+    msg_recv(sockfd, &msg, 100);
+    fprintf(stderr, "%s: %s\n", msg_type_to_str(msg.hdr.type), msg.payload);
 
     return 0;
 }
@@ -220,14 +246,49 @@ static int cmd_upload(char* progname, int argc, char** argv)
 {
     (void)progname;
     (void)argc;
-    (void)argv;
 
-    int sockfd = connect_to_server(argv[0], 1234);
+    if (argc < 1)
+    {
+        print_cmd_usage(progname, CMD_ULOD);
+        return 1;
+    }
+
+    FileInfo info;
+    int ret = fileinfo_from_filename(argv[0], &info);
+    if (ret < 0)
+    {
+        fprintf(stderr, "%s: %s\n", argv[0], strerror(errno));
+        return 1;
+    }
+
+    int sockfd = connect_to_server(server_ip, 1234);
     if (sockfd == -1) return 1;
 
+    printf("filename: %s\n", info.name);
+    printf("size: %zu\n", info.size);
+    printf("chunk count: %zu\n", info.chunk_count);
+    printf("checksum: ");
+    checksum_print(info.checksum);
+
     Message msg;
-    msg_init(&msg, UPLOAD_REQ, NULL, 0);
+    msg_init(&msg, MSGTYPE_UPLOAD_REQ, (byte*)&info, sizeof(info));
     msg_send(&msg, sockfd, NULL, 0);
+
+    msg_init(&msg, MSGTYPE_NONE, NULL, 0);
+    msg_recv(sockfd, &msg, 0);
+
+    msg_print(&msg);
+
+    if (msg.hdr.type == MSGTYPE_AUTH_FAIL)
+    {
+        fprintf(stderr, "please authenticate first\n");
+        print_cmd_usage(progname, CMD_AUTH);
+    }
+    else if (msg.hdr.type != MSGTYPE_UPLOAD_RES)
+    {
+        return 1;
+    }
+
     // TODO: 1. send UPLOAD_REQ message with token (if token not found, prompt the user to run auth and return 1)
     // TODO: 2. if not ack (ex. user has no more space) print error and return 1
     // TODO: 3. calculate file checksum
@@ -247,11 +308,11 @@ static int cmd_download(char* progname, int argc, char** argv)
     (void)argc;
     (void)argv;
 
-    int sockfd = connect_to_server(argv[0], 1234);
+    int sockfd = connect_to_server(server_ip, 1234);
     if (sockfd == -1) return 1;
 
     Message msg;
-    msg_init(&msg, DOWNLOAD_REQ, NULL, 0);
+    msg_init(&msg, MSGTYPE_DOWNLOAD_REQ, NULL, 0);
     msg_send(&msg, sockfd, NULL, 0);
     // TODO: 1. send DOWNLOAD_REQ message with token (if token not found, prompt the user to run auth and return 1)
     // TODO: 2. if not ack (ex. user has no more space) print error and return 1
@@ -271,11 +332,11 @@ static int cmd_list(char* progname, int argc, char** argv)
     (void)argc;
     (void)argv;
 
-    int sockfd = connect_to_server(argv[0], 1234);
+    int sockfd = connect_to_server(server_ip, 1234);
     if (sockfd == -1) return 1;
 
     Message msg;
-    msg_init(&msg, LIST_REQ, NULL, 0);
+    msg_init(&msg, MSGTYPE_LIST_REQ, NULL, 0);
     msg_send(&msg, sockfd, NULL, 0);
     return 0;
 }
@@ -286,11 +347,11 @@ static int cmd_rm(char* progname, int argc, char** argv)
     (void)argc;
     (void)argv;
 
-    int sockfd = connect_to_server(argv[0], 1234);
+    int sockfd = connect_to_server(server_ip, 1234);
     if (sockfd == -1) return 1;
 
     Message msg;
-    msg_init(&msg, REMOVE_REQ, NULL, 0);
+    msg_init(&msg, MSGTYPE_REMOVE_REQ, NULL, 0);
     msg_send(&msg, sockfd, NULL, 0);
     return 0;
 }
