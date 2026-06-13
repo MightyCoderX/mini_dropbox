@@ -3,12 +3,14 @@
 
 #include <stddef.h>
 
+#include "types.h"
 #include "user.h"
 
 typedef struct {
-    char* name;
     size_t size;
     size_t chunk_count;
+    byte checksum[32];
+    char name[64];
 } FileInfo;
 int fileinfo_from_filename(char* filename, FileInfo* out);
 
