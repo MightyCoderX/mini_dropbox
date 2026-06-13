@@ -5,24 +5,25 @@
 #include <uuid/uuid.h>
 #include "types.h"
 
-#define MSGTYPES                    \
-    X(AUTH_REQ, "AUTH_REQ")         \
-    X(AUTH_OK, "AUTH_OK")           \
-    X(AUTH_FAIL, "AUTH_FAIL")       \
-    X(UPLOAD_REQ, "UPLOAD_REQ")     \
-    X(UPLOAD_RES, "UPLOAD_RES")     \
-    X(UPLOAD_FIN, "UPLOAD_FIN")     \
-    X(DOWNLOAD_REQ, "DOWNLOAD_REQ") \
-    X(DOWNLOAD_RES, "DOWNLOAD_RES") \
-    X(DOWNLOAD_FIN, "DOWNLOAD_FIN") \
-    X(LIST_REQ, "LIST_REQ")         \
-    X(LIST_RES, "LIST_RES")         \
-    X(REMOVE_REQ, "REMOVE_REQ")     \
-    X(REMOVE_OK, "REMOVE_OK")       \
-    X(REMOVE_FAIL, "REMOVE_FAIL")   \
-    X(SEND_CHUNK, "SEND_CHUNK")     \
-    X(CHUNK_OK, "CHUNK_OK")         \
-    X(CHUNK_AGAIN, "CHUNK_AGAIN")
+#define MSGTYPES                                    \
+    X(MSGTYPE_NONE, "MSGTYPE_NONE")                 \
+    X(MSGTYPE_AUTH_REQ, "MSGTYPE_AUTH_REQ")         \
+    X(MSGTYPE_AUTH_OK, "MSGTYPE_AUTH_OK")           \
+    X(MSGTYPE_AUTH_FAIL, "MSGTYPE_AUTH_FAIL")       \
+    X(MSGTYPE_UPLOAD_REQ, "MSGTYPE_UPLOAD_REQ")     \
+    X(MSGTYPE_UPLOAD_RES, "MSGTYPE_UPLOAD_RES")     \
+    X(MSGTYPE_UPLOAD_FIN, "MSGTYPE_UPLOAD_FIN")     \
+    X(MSGTYPE_DOWNLOAD_REQ, "MSGTYPE_DOWNLOAD_REQ") \
+    X(MSGTYPE_DOWNLOAD_RES, "MSGTYPE_DOWNLOAD_RES") \
+    X(MSGTYPE_DOWNLOAD_FIN, "MSGTYPE_DOWNLOAD_FIN") \
+    X(MSGTYPE_LIST_REQ, "MSGTYPE_LIST_REQ")         \
+    X(MSGTYPE_LIST_RES, "MSGTYPE_LIST_RES")         \
+    X(MSGTYPE_REMOVE_REQ, "MSGTYPE_REMOVE_REQ")     \
+    X(MSGTYPE_REMOVE_OK, "MSGTYPE_REMOVE_OK")       \
+    X(MSGTYPE_REMOVE_FAIL, "MSGTYPE_REMOVE_FAIL")   \
+    X(MSGTYPE_SEND_CHUNK, "MSGTYPE_SEND_CHUNK")     \
+    X(MSGTYPE_CHUNK_OK, "MSGTYPE_CHUNK_OK")         \
+    X(MSGTYPE_CHUNK_AGAIN, "MSGTYPE_CHUNK_AGAIN")
 
 typedef enum {
 #define X(id, name) id,
@@ -33,6 +34,7 @@ typedef enum {
 typedef struct {
     size_t length;
     MessageType type;
+    uuid_t token;
     struct timespec sent_at;
 } MessageHdr;
 
@@ -47,6 +49,9 @@ typedef struct {
  * Initialize the Message struct by pointer
  */
 void msg_init(Message* self, MessageType type, byte* payload, size_t length);
+
+const char* msg_type_to_str(MessageType type);
+void msg_print(Message* self);
 
 /*
  * Send a Message structure on a TCP socket,
@@ -99,7 +104,5 @@ int msg_recv_payload(int sockfd, Message* msg, size_t maxlen);
  *  -3 when the len received in the message header is bigger than `maxlen` to avoid DoS attacks
  */
 int msg_recv(int sockfd, Message* msg, size_t maxlen);
-
-const char* msg_type_to_str(MessageType type);
 
 #endif // !_PROTO_H
