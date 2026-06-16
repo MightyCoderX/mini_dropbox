@@ -19,13 +19,13 @@
 
 #define streq(str1, str2) (strcmp(str1, str2) == 0)
 
-#define COMMANDS                                                                         \
-    X(CMD_HELP, "help", "[command]", cmd_help)                                           \
-    X(CMD_AUTH, "auth", "<server_address>", cmd_auth)                                    \
-    X(CMD_DLOD, "upload", "<server_address> <local_file>  [remote_file]", cmd_upload)    \
-    X(CMD_ULOD, "download", "<server_address> <remote_file> [local_file]", cmd_download) \
-    X(CMD_LIST, "list", "<server_address> [path]", cmd_list)                             \
-    X(CMD_RMFI, "rm", "<server_address> <remote_file>", cmd_rm)
+#define COMMANDS                                                        \
+    X(CMD_HELP, "help", "[command]", cmd_help)                          \
+    X(CMD_AUTH, "auth", "", cmd_auth)                                   \
+    X(CMD_ULOD, "upload", "<local_file> [remote_file]", cmd_upload)     \
+    X(CMD_DLOD, "download", "<remote_file> [local_file]", cmd_download) \
+    X(CMD_LIST, "list", "[path]", cmd_list)                             \
+    X(CMD_RMFI, "rm", "<remote_file>", cmd_rm)
 
 typedef enum {
 #define X(id, name, usage, func) id,
