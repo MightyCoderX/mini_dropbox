@@ -35,6 +35,7 @@ struct Worker {
     pthread_t thread;
     sem_t work_sem;
     Session* session;
+    // TODO: use atomic variable instead of boolean updated in sigaction handler
     bool terminated;
     int sockfd;
     void (*func)(Worker* w);
@@ -184,6 +185,7 @@ int create_server_socket(const char* server_ip, short port, struct sockaddr_in* 
 
 int main(void)
 {
+    // TODO: use sigaction instead of signal
     signal(SIGINT, sighandler);
     atexit(cleanup);
 
