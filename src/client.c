@@ -115,7 +115,7 @@ int main(int argc, char** argv)
 
 static void print_help(char* progname)
 {
-    fprintf(stderr, "\nUsage: %s [-s SERVER_IP] COMMAND\n\n", progname);
+    fprintf(stderr, "\nusage: %s [-s SERVER_IP] COMMAND\n\n", progname);
     size_t max_len = strlen(commands[0].name);
 
     size_t cmd_count = sizeof(commands) / sizeof(*commands);
@@ -151,7 +151,7 @@ static void print_help(char* progname)
 void print_cmd_usage(char* progname, CommandID id)
 {
     Command cmd = commands[id];
-    fprintf(stderr, "Usage: %s %s %s\n", progname, cmd.name, cmd.usage);
+    fprintf(stderr, "usage: %s %s %s\n", progname, cmd.name, cmd.usage);
 }
 
 int cmd_help(char* progname, int argc, char** argv)
