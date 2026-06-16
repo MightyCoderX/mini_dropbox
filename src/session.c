@@ -34,7 +34,6 @@ void session_init(Session* self)
     self->state = SSTATE_IDLE;
     self->started_at = (struct timespec) { 0, 0 };
     self->chunks_transferred = 0;
-    self->current_chunk = 0;
 }
 
 void session_start(Session* self, User* user, FileInfo* file_info, SessionType type)

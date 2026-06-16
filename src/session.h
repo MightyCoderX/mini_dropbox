@@ -33,10 +33,10 @@ typedef struct {
     SessionState state;
     struct timespec started_at;
     size_t chunks_transferred;
-    size_t current_chunk;
 } Session;
 
 void session_init(Session* self);
 void session_start(Session* self, User* user, FileInfo* file_info, SessionType type);
+void session_destroy(Session* self);
 
 #endif // SESSION_H
