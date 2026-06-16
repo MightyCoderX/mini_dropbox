@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,7 @@
 #include <semaphore.h>
 #include <linux/limits.h>
 #include <uuid/uuid.h>
+#include <sys/epoll.h>
 
 #include "msg.h"
 
@@ -23,6 +25,7 @@
 #define NTHREADS 10UL
 #define STORAGE_DIR "/var/minibox"
 #define USER_MAX_STORAGE 10e9
+#define MAX_EVENTS 64
 
 #include "session.h"
 
@@ -63,142 +66,22 @@ void* worker(void* arg)
     return NULL;
 }
 
-void handle_auth(Worker* w, Message* msg)
-{
-    char token[37];
-    uuid_unparse(msg->hdr.token, token);
+void on_client_connected(int client_fd, struct sockaddr_in client_addr);
+int on_client_message_received(int client_fd, Message* msg);
+void on_client_disconnected(int client_fd);
 
-    fprintf(stderr, "[worker #%d] user with token %s requested auth\n", w->id, token);
+void handle_client(Worker* w);
 
-    char user_dir[PATH_MAX];
-    snprintf(user_dir, sizeof(user_dir), STORAGE_DIR "/%s", token);
-    if (mkdir(user_dir, 0700) < 0)
-    {
-        Message res;
-        char error[100];
+void on_oneshot_req(int sockfd, Message* msg);
+void on_stream_req(int sockfd, Message* msg);
 
-        strcpy(error, strerror(errno));
-        fprintf(stderr, "[worker #%d] failed to create user dir: %s\n", w->id, error);
-        if (errno == EEXIST)
-        {
-            strcpy(error, "Already registered");
-            fprintf(stderr, "[worker #%d] user dir already exists\n", w->id);
-        }
-        msg_init(&res, MSGTYPE_AUTH_FAIL, (byte*)error, strlen(error));
-        msg_send(&res, w->sockfd, NULL, 0);
-    }
-    else
-    {
-        fprintf(stderr, "[worker #%d] new user dir created\n", w->id);
-        Message res;
-        char succ[] = "Registered\0";
-        msg_init(&res, MSGTYPE_AUTH_OK, (byte*)succ, sizeof(succ));
-        msg_send(&res, w->sockfd, NULL, 0);
-    }
-}
-
-void handle_upload(Worker* w, Message* msg)
-{
-    (void)w;
-    fprintf(stderr, "[handle_upload] received upload req\n");
-
-    printf("receiving payload\n");
-    msg_recv_payload(w->sockfd, msg, sizeof(FileInfo));
-    printf("received %zu bytes\n", msg->hdr.length);
-
-    FileInfo* info = (FileInfo*)msg->payload;
-
-    printf("filename: %s\n", info->name);
-    printf("size: %zu\n", info->size);
-    printf("chunk count: %zu\n", info->chunk_count);
-}
-
-void handle_download(Worker* w, Message* msg)
-{
-    (void)w;
-    (void)msg;
-    fprintf(stderr, "[handle_download] received download req\n");
-}
-
-void handle_list(Worker* w, Message* msg)
-{
-    (void)w;
-    (void)msg;
-    fprintf(stderr, "[handle_list] received list req\n");
-}
-
-void handle_remove(Worker* w, Message* msg)
-{
-    (void)w;
-    (void)msg;
-    fprintf(stderr, "[handle_remove] received remove req\n");
-}
+void handle_auth(int sockfd, Message* msg);
+void handle_upload(int sockfd, Message* msg);
+void handle_download(int sockfd, Message* msg);
+void handle_list(int sockfd, Message* msg);
+void handle_remove(int sockfd, Message* msg);
 
 static Session* sessions;
-
-void handle_client(Worker* w)
-{
-    Message msg;
-    msg_recv_header(w->sockfd, &msg);
-
-    char token[37];
-    uuid_unparse(msg.hdr.token, token);
-    printf("Received message: \n");
-    printf("    type: %s\n", msg_type_to_str(msg.hdr.type));
-    printf("    length: %zu\n", msg.hdr.length);
-    printf("    sent_at: %zus, %zuns\n", msg.hdr.sent_at.tv_sec, msg.hdr.sent_at.tv_nsec);
-    printf("    token: %s\n", token);
-    printf("    rcvd_at: %zus, %zuns\n", msg.rcvd_at.tv_sec, msg.rcvd_at.tv_nsec);
-
-    if (msg.hdr.type != MSGTYPE_AUTH_REQ && uuid_is_null(msg.hdr.token))
-    {
-        msg_init(&msg, MSGTYPE_AUTH_FAIL, NULL, 0);
-        msg_send(&msg, w->sockfd, NULL, 0);
-        return;
-    }
-
-    for (size_t i = 0; i < NTHREADS; i++)
-    {
-        if (sessions[i].user->token == msg.hdr.token)
-        {
-            w->session = &sessions[i];
-            break;
-        }
-    }
-
-    switch (msg.hdr.type)
-    {
-    case MSGTYPE_AUTH_REQ:
-        handle_auth(w, &msg);
-        break;
-    case MSGTYPE_UPLOAD_REQ:
-        handle_upload(w, &msg);
-        break;
-    case MSGTYPE_DOWNLOAD_REQ:
-        handle_download(w, &msg);
-        break;
-    case MSGTYPE_LIST_REQ:
-        break;
-    case MSGTYPE_REMOVE_REQ:
-        handle_remove(w, &msg);
-        break;
-    case MSGTYPE_AUTH_OK:
-    case MSGTYPE_AUTH_FAIL:
-    case MSGTYPE_UPLOAD_RES:
-    case MSGTYPE_UPLOAD_FIN:
-    case MSGTYPE_DOWNLOAD_RES:
-    case MSGTYPE_DOWNLOAD_FIN:
-    case MSGTYPE_LIST_RES:
-    case MSGTYPE_REMOVE_OK:
-    case MSGTYPE_REMOVE_FAIL:
-    case MSGTYPE_SEND_CHUNK:
-    case MSGTYPE_CHUNK_OK:
-    case MSGTYPE_CHUNK_AGAIN:
-        break;
-    case MSGTYPE_NONE:
-        break;
-    }
-}
 
 Worker* workers[NTHREADS];
 
@@ -234,6 +117,23 @@ void sighandler(int sig)
     }
 }
 
+static void set_nonblock(int fd)
+{
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags == -1)
+    {
+        perror("fcntl F_GETFL");
+        exit(1);
+    }
+
+    int err = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    if (err == -1)
+    {
+        perror("fcntl F_SETFL");
+        exit(1);
+    }
+}
+
 int create_server_socket(const char* server_ip, short port, struct sockaddr_in* address)
 {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -251,6 +151,7 @@ int create_server_socket(const char* server_ip, short port, struct sockaddr_in* 
         perror("setsockopt SO_REUSEADDR");
         return -1;
     }
+    set_nonblock(server_fd);
 
     /*
      * Configure address
@@ -323,7 +224,6 @@ int main(void)
     fprintf(stderr, "[main] workers ready!\n");
 
     struct sockaddr_in address;
-    socklen_t addrlen = sizeof(address);
     int server_fd = create_server_socket("0.0.0.0", PORT, &address);
 
     if (listen(server_fd, 100) < 0)
@@ -334,24 +234,307 @@ int main(void)
     }
     printf("[main] Listening at 0.0.0.0:%d\n\n", PORT);
 
+    int epfd = epoll_create1(0);
+    if (epfd == -1)
+    {
+        perror("epoll_create1");
+        close(server_fd);
+        return 1;
+    }
+
+    struct epoll_event ev = {
+        .events = EPOLLIN,
+        .data.fd = server_fd,
+    };
+    if (epoll_ctl(epfd, EPOLL_CTL_ADD, server_fd, &ev) == -1)
+    {
+        perror("epoll_ctl ADD server_fd");
+        return 1;
+    }
+
     /*
      * Accept new connections
      */
-    while (true)
+    struct epoll_event events[MAX_EVENTS];
+    while (1)
     {
-        int sockfd = accept(server_fd, (struct sockaddr*)&address, &addrlen);
-        if (sockfd < 0)
+        int nevents = epoll_wait(epfd, events, MAX_EVENTS, -1);
+        if (nevents == -1)
         {
-            perror("accept");
-            continue;
+            // continue if interrupted by signal
+            if (errno == EINTR) continue;
+            perror("epoll_wait");
+            break;
+        }
+        for (int i = 0; i < nevents; i++)
+        {
+            int fd = events[i].data.fd;
+            if (fd == server_fd)
+            {
+                struct sockaddr_in client_addr;
+                socklen_t addrlen = sizeof(client_addr);
+                int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addrlen);
+                if (client_fd < 0)
+                {
+                    perror("accept");
+                    continue;
+                }
+                set_nonblock(client_fd);
+
+                ev.events = EPOLLIN;
+                ev.data.fd = client_fd;
+                if (epoll_ctl(epfd, EPOLL_CTL_ADD, client_fd, &ev) == -1)
+                {
+                    perror("epoll_ctl ADD client");
+                    close(client_fd);
+                }
+
+                // TODO: log connection
+                on_client_connected(client_fd, client_addr);
+            }
+            else if (events[i].events & EPOLLIN) // event on a client fd: data or disconnection
+            {
+                Message msg;
+                int ret = msg_recv_header(fd, &msg);
+                if (ret == -1)
+                {
+                    // TODO: log system error, unintended disconnection
+                    on_client_disconnected(fd);
+                    epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
+                    close(fd);
+                    perror("msg_recv_header");
+                    continue;
+                }
+
+                if (ret == -2)
+                {
+                    // TODO: log intentional, clean disconnection
+                    on_client_disconnected(fd);
+                    epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
+                    close(fd);
+                }
+
+                ret = on_client_message_received(fd, &msg);
+                if (ret == -1)
+                {
+                    on_client_disconnected(fd);
+                    epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
+                    close(fd);
+                }
+            }
+            else if (events[i].events & (EPOLLERR | EPOLLHUP))
+            {
+                epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
+                close(fd);
+                // TODO: client disconnected cause of epoll error/hangup
+                on_client_disconnected(fd);
+            }
         }
 
-        // TODO: actually assign a free worker here instead of the same hard-coded one
-        workers[0]->sockfd = sockfd;
-        workers[0]->func = handle_client;
-        sem_post(&workers[0]->work_sem);
-        printf("New client connected, assigned worker thread %lu\n", 0UL);
+        // workers[0]->sockfd = sockfd;
+        // workers[0]->func = handle_client;
+        // sem_post(&workers[0]->work_sem);
+        // printf("New client connected, assigned worker thread %lu\n", 0UL);
     }
 
+    // FIX: never reached, put this in cleanup
+    close(epfd);
+    close(server_fd);
     return 0;
+}
+
+void on_client_connected(int client_fd, struct sockaddr_in client_addr)
+{
+    char ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &client_addr.sin_addr, ip, sizeof(ip));
+
+    printf("[+] new client\n");
+    printf("    connection socket: fd=%d, %s:%d\n", client_fd, ip, ntohs(client_addr.sin_port));
+}
+
+int on_client_message_received(int sockfd, Message* msg)
+{
+    char token[37];
+    uuid_unparse(msg->hdr.token, token);
+    printf("Received message: \n");
+    printf("    type: %s\n", msg_type_to_str(msg->hdr.type));
+    printf("    length: %zu\n", msg->hdr.length);
+    printf("    sent_at: %zus, %zuns\n", msg->hdr.sent_at.tv_sec, msg->hdr.sent_at.tv_nsec);
+    printf("    token: %s\n", token);
+    printf("    rcvd_at: %zus, %zuns\n", msg->rcvd_at.tv_sec, msg->rcvd_at.tv_nsec);
+
+    if (msg->hdr.type != MSGTYPE_AUTH_REQ && uuid_is_null(msg->hdr.token))
+    {
+        msg_init(msg, MSGTYPE_AUTH_FAIL, NULL, 0);
+        msg_send(msg, sockfd, NULL, 0);
+        return -1;
+    }
+
+    switch (msg->hdr.type)
+    {
+    case MSGTYPE_AUTH_REQ:
+    case MSGTYPE_REMOVE_REQ:
+        on_oneshot_req(sockfd, msg);
+        break;
+    // stream requests
+    case MSGTYPE_UPLOAD_REQ:
+    case MSGTYPE_DOWNLOAD_REQ:
+    case MSGTYPE_LIST_REQ:
+        on_stream_req(sockfd, msg);
+        break;
+    case MSGTYPE_AUTH_OK:
+    case MSGTYPE_AUTH_FAIL:
+    case MSGTYPE_UPLOAD_RES:
+    case MSGTYPE_UPLOAD_FIN:
+    case MSGTYPE_DOWNLOAD_RES:
+    case MSGTYPE_DOWNLOAD_FIN:
+    case MSGTYPE_LIST_RES:
+    case MSGTYPE_REMOVE_OK:
+    case MSGTYPE_REMOVE_FAIL:
+    case MSGTYPE_SEND_CHUNK:
+    case MSGTYPE_CHUNK_OK:
+    case MSGTYPE_CHUNK_AGAIN:
+        fprintf(stderr, "invalid message received %s\n", msg_type_to_str(msg->hdr.type));
+        break;
+    case MSGTYPE_NONE:
+        break;
+    }
+    return 0;
+}
+
+void on_client_disconnected(int client_fd)
+{
+    (void)client_fd;
+}
+
+void on_oneshot_req(int sockfd, Message* msg)
+{
+    switch (msg->hdr.type)
+    {
+    case MSGTYPE_AUTH_REQ:
+        handle_auth(sockfd, msg);
+        break;
+    case MSGTYPE_REMOVE_REQ:
+        handle_remove(sockfd, msg);
+        break;
+    case MSGTYPE_NONE:
+    case MSGTYPE_AUTH_OK:
+    case MSGTYPE_AUTH_FAIL:
+    case MSGTYPE_UPLOAD_REQ:
+    case MSGTYPE_UPLOAD_RES:
+    case MSGTYPE_UPLOAD_FIN:
+    case MSGTYPE_DOWNLOAD_REQ:
+    case MSGTYPE_DOWNLOAD_RES:
+    case MSGTYPE_DOWNLOAD_FIN:
+    case MSGTYPE_LIST_REQ:
+    case MSGTYPE_LIST_RES:
+    case MSGTYPE_REMOVE_OK:
+    case MSGTYPE_REMOVE_FAIL:
+    case MSGTYPE_SEND_CHUNK:
+    case MSGTYPE_CHUNK_OK:
+    case MSGTYPE_CHUNK_AGAIN:
+        break;
+    }
+}
+
+void on_stream_req(int sockfd, Message* msg)
+{
+    switch (msg->hdr.type)
+    {
+    case MSGTYPE_UPLOAD_REQ:
+        handle_upload(sockfd, msg);
+        break;
+    case MSGTYPE_DOWNLOAD_REQ:
+        handle_download(sockfd, msg);
+        break;
+    case MSGTYPE_LIST_REQ:
+        handle_list(sockfd, msg);
+        break;
+    case MSGTYPE_NONE:
+    case MSGTYPE_AUTH_REQ:
+    case MSGTYPE_AUTH_OK:
+    case MSGTYPE_AUTH_FAIL:
+    case MSGTYPE_UPLOAD_RES:
+    case MSGTYPE_UPLOAD_FIN:
+    case MSGTYPE_DOWNLOAD_RES:
+    case MSGTYPE_DOWNLOAD_FIN:
+    case MSGTYPE_LIST_RES:
+    case MSGTYPE_REMOVE_REQ:
+    case MSGTYPE_REMOVE_OK:
+    case MSGTYPE_REMOVE_FAIL:
+    case MSGTYPE_SEND_CHUNK:
+    case MSGTYPE_CHUNK_OK:
+    case MSGTYPE_CHUNK_AGAIN:
+        break;
+    }
+}
+
+void handle_auth(int sockfd, Message* msg)
+{
+    char token[37];
+    uuid_unparse(msg->hdr.token, token);
+
+    fprintf(stderr, "[main] user with token %s requested auth\n", token);
+
+    char user_dir[PATH_MAX];
+    snprintf(user_dir, sizeof(user_dir), STORAGE_DIR "/%s", token);
+    if (mkdir(user_dir, 0700) < 0)
+    {
+        Message res;
+        char error[100];
+
+        strcpy(error, strerror(errno));
+        fprintf(stderr, "[main] failed to create user dir: %s\n", error);
+        if (errno == EEXIST)
+        {
+            strcpy(error, "Already registered");
+            fprintf(stderr, "[main] user dir already exists\n");
+        }
+        msg_init(&res, MSGTYPE_AUTH_FAIL, (byte*)error, strlen(error));
+        msg_send(&res, sockfd, NULL, 0);
+    }
+    else
+    {
+        fprintf(stderr, "[main] new user dir created\n");
+        Message res;
+        char succ[] = "Registered\0";
+        msg_init(&res, MSGTYPE_AUTH_OK, (byte*)succ, sizeof(succ));
+        msg_send(&res, sockfd, NULL, 0);
+    }
+}
+
+void handle_upload(int sockfd, Message* msg)
+{
+    fprintf(stderr, "[handle_upload] received upload req\n");
+
+    printf("receiving payload\n");
+    msg_recv_payload(sockfd, msg, sizeof(FileInfo));
+    printf("received %zu bytes\n", msg->hdr.length);
+
+    FileInfo* info = (FileInfo*)msg->payload;
+
+    printf("filename: %s\n", info->name);
+    printf("size: %zu\n", info->size);
+    printf("chunk count: %zu\n", info->chunk_count);
+}
+
+void handle_download(int sockfd, Message* msg)
+{
+    (void)sockfd;
+    (void)msg;
+    fprintf(stderr, "[handle_download] received download req\n");
+}
+
+void handle_list(int sockfd, Message* msg)
+{
+    (void)sockfd;
+    (void)msg;
+    fprintf(stderr, "[handle_list] received list req\n");
+}
+
+void handle_remove(int sockfd, Message* msg)
+{
+    (void)sockfd;
+    (void)msg;
+    fprintf(stderr, "[handle_remove] received remove req\n");
 }
