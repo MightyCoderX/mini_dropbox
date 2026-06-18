@@ -1,14 +1,20 @@
-#include <arpa/inet.h>
-#include <assert.h>
-#include <fcntl.h>
-#include <netinet/in.h>
+#include <asm-generic/errno-base.h>
+#include <errno.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/socket.h>
+#include <string.h>
 
 #include <openssl/evp.h>
+#include <arpa/inet.h>
+#include <assert.h>
+#include <fcntl.h>
+#include <linux/limits.h>
+#include <netinet/in.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <libgen.h>
 
 #include "util.h"
 #include "chunk.h"
@@ -133,4 +139,161 @@ void checksum_print(checksum_t checksum)
         printf("%02x", checksum[i]);
     }
     printf("\n");
+}
+
+char* normalize_path(const char* path)
+{
+    if (!path) return NULL;
+
+    char* out = malloc(strlen(path) + 2);
+    if (!out) return NULL;
+
+    const char* p = path;
+    int i = 0;
+    int is_absolute = (*p == '/');
+
+    if (is_absolute) out[i++] = '/';
+
+    while (*p)
+    {
+        if (*p == '/')
+        {
+            p++;
+            continue;
+        }
+
+        const char* start = p;
+        while (*p && *p != '/')
+            p++;
+        int len = p - start;
+
+        if (len == 1 && start[0] == '.')
+        {
+            // skip .
+        }
+        else if (len == 2 && start[0] == '.' && start[1] == '.')
+        {
+            if (is_absolute)
+            {
+                // don't go past root
+                if (i > 1)
+                {
+                    i--;
+                    while (i > 1 && out[i - 1] != '/')
+                        i--;
+                }
+            }
+            else
+            {
+                // can we go up?
+                if (i > 0 && !(out[i - 1] == '.' && (i < 2 || out[i - 2] == '/')))
+                {
+                    // rewind past last component
+                    i--;
+                    while (i > 0 && out[i - 1] != '/')
+                        i--;
+                    if (i > 0) i--; // remove trailing slash
+                }
+                else
+                {
+                    // no component to rewind — keep the ..
+                    if (i > 0) out[i++] = '/';
+                    memcpy(out + i, "..", 2);
+                    i += 2;
+                }
+            }
+        }
+        else
+        {
+            if (i > 0 && out[i - 1] != '/') out[i++] = '/';
+            memcpy(out + i, start, len);
+            i += len;
+        }
+    }
+
+    if (i == 0)
+    {
+        out[i++] = '.';
+    }
+    out[i] = '\0';
+    return out;
+}
+
+int stridx(const char* str, char c)
+{
+    char* p = strchr(str, c);
+    if (p == NULL) return -1;
+
+    return str - p;
+}
+
+char* path_next_dir(const char* full_path, int skip_chars)
+{
+    static char* path;
+    static int len;
+    static int curr_slash;
+    if (full_path != NULL)
+    {
+        path = strdup(full_path);
+        len = strlen(path);
+        curr_slash = -1;
+    }
+
+    if (curr_slash >= len)
+    {
+        return NULL;
+    }
+
+    path[curr_slash] = '/';
+
+    int i = curr_slash + 1;
+
+    while ((path[i] != '/' || i <= skip_chars) && path[i] != '\0')
+    {
+        i++;
+    }
+    path[i] = '\0';
+    curr_slash = i;
+
+    return path;
+}
+
+int create_directories_from_path(char* root_dir, char* user_path)
+{
+    char abs_path[PATH_MAX];
+    snprintf(abs_path, sizeof(abs_path), "%s/%s", root_dir, user_path);
+
+    char* path = normalize_path(abs_path);
+    if (path == NULL)
+    {
+        return -1;
+    }
+
+    size_t root_dir_len = strlen(root_dir);
+    if (strncmp(root_dir, path, root_dir_len) != 0)
+    {
+        free(path);
+        return -1;
+    }
+
+    user_path = &path[root_dir_len];
+
+    char* dir = path_next_dir(path, root_dir_len - 1);
+
+    printf("full_path: %s\n", path);
+    while ((dir = path_next_dir(NULL, 0)) != NULL)
+    {
+        if (mkdir(dir, 0700) < 0)
+        {
+            perror("mkdir");
+            if (errno != EEXIST)
+            {
+                return -1;
+            }
+        }
+        printf("%s\n", dir);
+    }
+
+    free(path);
+    return 0;
 }
