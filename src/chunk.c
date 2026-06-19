@@ -30,6 +30,7 @@
 void chunk_init(Chunk* self, ChunkHdr hdr, byte* data, size_t length)
 {
     self->hdr = hdr;
+    self->data = data;
     checksum(data, length, hdr.checksum);
 }
 
