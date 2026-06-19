@@ -11,8 +11,8 @@
 #include <linux/limits.h>
 #include <uuid/uuid.h>
 
+#include "file.h"
 #include "msg.h"
-#include "session.h"
 #include "util.h"
 
 #define DEFAULT_SERVER_IP "127.0.0.1"
@@ -264,7 +264,7 @@ static int cmd_upload(char* progname, int argc, char** argv)
     int sockfd = connect_to_server(server_ip, 1234);
     if (sockfd == -1) return 1;
 
-    printf("filename: %s\n", info.name);
+    printf("filename: %s\n", info.filename);
     printf("size: %zu\n", info.size);
     printf("chunk count: %zu\n", info.chunk_count);
     printf("checksum: ");
