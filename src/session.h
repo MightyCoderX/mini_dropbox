@@ -21,16 +21,15 @@ typedef enum {
 } SessionState;
 
 typedef struct {
-    User* user;
-    FileInfo* file_info;
     SessionType type;
     SessionState state;
-    struct timespec started_at;
+    User* user;
+    FileInfo* file_info;
     size_t chunks_transferred;
+    struct timespec started_at;
 } Session;
 
-void session_init(Session* self);
-void session_start(Session* self, User* user, FileInfo* file_info, SessionType type);
+void session_init(Session* self, User* user, FileInfo* file_info, SessionType type);
 void session_destroy(Session* self);
 
 #endif // SESSION_H
