@@ -8,24 +8,24 @@
 #include "msg.h"
 #include "util.h"
 
-Chunk* chunk_next(FileInfo* info)
-{
-    static FileInfo* s_info;
-    static size_t byte_index;
-    static int fd;
-
-    if (info != NULL)
-    {
-        s_info = info;
-        byte_index = 0;
-        fd = 0;
-        return NULL;
-    }
-
-    // TODO: create chunk, increase byte index by CHUNK_SIZE, return chunk
-
-    return NULL;
-}
+// Chunk* chunk_next(FileInfo* info)
+// {
+//     static FileInfo* s_info;
+//     static size_t byte_index;
+//     static int fd;
+//
+//     if (info != NULL)
+//     {
+//         s_info = info;
+//         byte_index = 0;
+//         fd = 0;
+//         return NULL;
+//     }
+//
+//     // TODO: create chunk, increase byte index by CHUNK_SIZE, return chunk
+//
+//     return NULL;
+// }
 
 void chunk_init(Chunk* self, ChunkHdr hdr, byte* data, size_t length)
 {
