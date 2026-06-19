@@ -62,7 +62,8 @@ void msg_print(Message* self);
  * Returns:
  *   0 on success
  *  -1 when a system error happens (errno is set)
- *  -2 when send returns 0 (which is highly unusual, but should be treated as a disconnection)
+ *  -2 when send returns 0 (which is highly unusual,
+ *      but should be treated as a disconnection)
  */
 int msg_send(Message* self, int sockfd, byte* payload_hdr, size_t payload_hdr_len);
 
