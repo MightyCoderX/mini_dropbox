@@ -45,4 +45,29 @@ ssize_t chunk_send(Chunk* self, int sockfd)
     return self->hdr.length;
 }
 
-ssize_t chunk_recv(int sockfd, Chunk* self);
+ssize_t chunk_recv(int sockfd, Chunk* self)
+{
+    Message msg;
+    msg_recv_header(sockfd, &msg);
+
+    if (msg.hdr.length < sizeof(ChunkHdr))
+    {
+        fprintf(stderr, "chunk received was smaller than ChunkHdr\n");
+        return -1;
+    }
+
+    msg_recv_payload(sockfd, &msg, sizeof(ChunkHdr) + CHUNK_SIZE);
+
+    memcpy(&self->hdr, msg.payload, sizeof(ChunkHdr));
+    self->data = msg.payload + sizeof(ChunkHdr);
+
+    checksum_t chk;
+    checksum(self->data, self->hdr.length, chk);
+
+    if (!checksums_match(chk, self->hdr.checksum))
+    {
+        return -2;
+    }
+
+    return 0;
+}

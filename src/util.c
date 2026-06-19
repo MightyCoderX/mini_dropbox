@@ -18,6 +18,7 @@
 
 #include "util.h"
 #include "chunk.h"
+#include "types.h"
 
 const char* xdg_dir_to_str(XDGDir dir)
 {
@@ -139,6 +140,19 @@ void checksum_print(checksum_t checksum)
         printf("%02x", checksum[i]);
     }
     printf("\n");
+}
+
+bool checksums_match(checksum_t chk1, checksum_t chk2)
+{
+    for (size_t i = 0; i < sizeof(checksum_t); i++)
+    {
+        if (chk1[i] != chk2[i])
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 char* normalize_path(const char* path)

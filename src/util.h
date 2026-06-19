@@ -18,6 +18,7 @@ typedef byte checksum_t[32];
 
 int file_checksum(const char* filename, checksum_t checksum);
 u32 checksum(const byte* data, size_t data_len, checksum_t checksum);
+bool checksums_match(checksum_t chk1, checksum_t chk2);
 void checksum_print(checksum_t checksum);
 
 char* normalize_path(const char* path);
