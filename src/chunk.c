@@ -1,10 +1,12 @@
 #include <assert.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "chunk.h"
 #include "msg.h"
-#include "session.h"
+#include "util.h"
 
 Chunk* chunk_next(FileInfo* info)
 {
