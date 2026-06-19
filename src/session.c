@@ -1,31 +1,4 @@
-#include <bits/time.h>
-#include <math.h>
-#include <string.h>
-#include <sys/stat.h>
-
 #include "session.h"
-#include "chunk.h"
-#include "util.h"
-
-int fileinfo_from_filename(char* filename, FileInfo* out)
-{
-    struct stat s;
-    if (lstat(filename, &s) < 0)
-    {
-        return -1;
-    }
-
-    strcpy(out->name, filename);
-    out->size = s.st_size;
-    out->chunk_count = ceil((float)s.st_size / CHUNK_SIZE);
-    if (file_checksum(filename, out->checksum) == -1)
-    {
-        return -1;
-    }
-
-    return 0;
-}
-
 void session_init(Session* self)
 {
     self->user = NULL;

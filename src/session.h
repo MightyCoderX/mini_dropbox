@@ -3,16 +3,10 @@
 
 #include <stddef.h>
 
-#include "types.h"
-#include "user.h"
+#include <linux/limits.h>
 
-typedef struct {
-    size_t size;
-    size_t chunk_count;
-    byte checksum[32];
-    char name[64];
-} FileInfo;
-int fileinfo_from_filename(char* filename, FileInfo* out);
+#include "user.h"
+#include "file.h"
 
 typedef enum {
     SESS_NONE,
