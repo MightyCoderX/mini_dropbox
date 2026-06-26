@@ -1,0 +1,31 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Server remote debug",
+			"type": "codelldb",
+			"request": "attach",
+			"targetCreateCommands": [
+				"target create ${workspaceFolder}/server"
+			],
+			"processCreateCommands": [
+				"gdb-remote 127.0.0.1:13000"
+			]
+		},
+		{
+			"name": "Client debug upload",
+			"type": "codelldb",
+			"request": "launch",
+			"targetCreateCommands": [
+				"shell make -C ${workspaceFolder} -B debug",
+				"target create ${workspaceFolder}/client"
+			],
+			"program": "${workspaceFolder}/client",
+			"args": [
+				"upload",
+				"./compile_commands.json"
+			],
+			"cwd": "${workspaceFolder}"
+		}
+	]
+}

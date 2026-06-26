@@ -25,6 +25,7 @@ TARGETS := client server
 .SECONDARY: $(OBJS)
 .PHONY: all clean debug clean compdb
 
+all: CFLAGS+=-DRELEASE
 all: $(TARGETS)
 
 %: $(BUILD_DIR)/%.o $(SHARED_OBJS)
