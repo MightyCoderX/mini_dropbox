@@ -175,15 +175,8 @@ int cmd_help(char* progname, int argc, char** argv)
     return 0;
 }
 
-int cmd_auth(char* progname, int argc, char** argv)
+int load_token(uuid_t token)
 {
-    (void)argc;
-    (void)progname;
-    (void)argv;
-
-    Message msg = { 0 };
-    msg_init(&msg, MSGTYPE_AUTH_REQ, NULL, 0);
-
     char tokfile_path[PATH_MAX];
     int len = xdg_get_dir(XDG_STATE_HOME, tokfile_path, sizeof(tokfile_path));
     if (len == -1)
@@ -199,7 +192,7 @@ int cmd_auth(char* progname, int argc, char** argv)
     if (fd == -1 && errno != EEXIST)
     {
         perror("open");
-        return 1;
+        return -1;
     }
 
     char token_str[37];
@@ -209,24 +202,42 @@ int cmd_auth(char* progname, int argc, char** argv)
         if (fd == -1)
         {
             perror("open");
-            return 1;
+            return -1;
         }
         read(fd, token_str, sizeof(token_str));
-        uuid_parse(token_str, msg.hdr.token);
+        uuid_parse(token_str, token);
         fprintf(stderr, "Read token from file %s\n", tokfile_path);
     }
     else
     {
-        uuid_generate(msg.hdr.token);
-        uuid_unparse(msg.hdr.token, token_str);
+        uuid_generate(token);
+        uuid_unparse(token, token_str);
         write(fd, token_str, sizeof(token_str));
         fprintf(stderr, "Wrote token to file %s\n", tokfile_path);
+    }
+    return 0;
+}
+
+int cmd_auth(char* progname, int argc, char** argv)
+{
+    (void)argc;
+    (void)progname;
+    (void)argv;
+
+    Message msg = { 0 };
+    msg_init(&msg, MSGTYPE_AUTH_REQ, NULL, 0);
+
+    int res = load_token(msg.hdr.token);
+    if (res == -1)
+    {
+        perror("load_token");
+        return 1;
     }
 
     int sockfd = connect_to_server(server_ip, 1234);
     if (sockfd == -1) return 1;
 
-    int res = msg_send(&msg, sockfd, NULL, 0);
+    res = msg_send(&msg, sockfd, NULL, 0);
     if (res == -1)
     {
         perror("msg_send");
@@ -242,11 +253,8 @@ int cmd_auth(char* progname, int argc, char** argv)
     return 0;
 }
 
-static int cmd_upload(char* progname, int argc, char** argv)
+int cmd_upload(char* progname, int argc, char** argv)
 {
-    (void)progname;
-    (void)argc;
-
     if (argc < 1)
     {
         print_cmd_usage(progname, CMD_ULOD);
@@ -271,11 +279,36 @@ static int cmd_upload(char* progname, int argc, char** argv)
     checksum_print(info.checksum);
 
     Message msg;
-    msg_init(&msg, MSGTYPE_UPLOAD_REQ, (byte*)&info, sizeof(info));
-    msg_send(&msg, sockfd, NULL, 0);
+    ret = load_token(msg.hdr.token);
+    if (ret == -1)
+    {
+        perror("load_token");
+        return 1;
+    }
 
-    msg_init(&msg, MSGTYPE_NONE, NULL, 0);
-    msg_recv(sockfd, &msg, 0);
+    msg_init(&msg, MSGTYPE_UPLOAD_REQ, (byte*)&info, sizeof(info));
+    ret = msg_send(&msg, sockfd, NULL, 0);
+    if (ret < 0)
+    {
+        printf("error when sending UPLOAD_REQ message: ret = %d, errno = %d (%s)\n", ret, errno,
+            strerror(errno));
+        return 1;
+    }
+
+    msg_clear(&msg);
+    ret = msg_recv_header(sockfd, &msg);
+    if (ret == -1)
+    {
+        printf("error when receiving UPLOAD_RES or AUTH_FAIL message: ret = %d, errno = %d (%s)\n",
+            ret, errno, strerror(errno));
+        return 1;
+    }
+    if (ret == -2)
+    {
+        printf("peer disconnected gracefully while receiving UPLOAD_RES or AUTH_FAIL: ret = %d\n",
+            ret);
+        return 1;
+    }
 
     msg_print(&msg);
 
@@ -283,10 +316,35 @@ static int cmd_upload(char* progname, int argc, char** argv)
     {
         fprintf(stderr, "please authenticate first\n");
         print_cmd_usage(progname, CMD_AUTH);
+        return 1;
     }
     else if (msg.hdr.type != MSGTYPE_UPLOAD_RES)
     {
+        printf("expected MSGTYPE_UPLOAD_RES, got %s\n", msg_type_to_str(msg.hdr.type));
         return 1;
+    }
+
+    struct upload_response_hdr_t {
+        bool isError;
+        size_t len;
+    };
+    msg_recv_payload(sockfd, &msg, 4096);
+    struct upload_response_hdr_t* upload_res_hdr = (struct upload_response_hdr_t*)msg.payload;
+
+    if (upload_res_hdr->isError)
+    {
+        printf("error: %s\n", msg.payload + sizeof(struct upload_response_hdr_t));
+        return 1;
+    }
+
+    ssize_t res = file_send(sockfd, info.filename);
+    printf("upload done: res=%zd\n", res);
+
+    msg_clear(&msg);
+    msg_recv_header(sockfd, &msg);
+    if (msg.hdr.type == MSGTYPE_UPLOAD_FIN)
+    {
+        printf("upload done!");
     }
 
     // TODO: 1. send UPLOAD_REQ message with token (if token not found, prompt the user to run auth and return 1)

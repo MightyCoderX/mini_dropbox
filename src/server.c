@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,7 +20,10 @@
 #include <uuid/uuid.h>
 #include <sys/epoll.h>
 
+#include "file.h"
 #include "msg.h"
+#include "user.h"
+#include "util.h"
 
 #define PORT 1234
 #define NTHREADS 10UL
@@ -83,6 +87,7 @@ void handle_list(int sockfd, Message* msg);
 void handle_remove(int sockfd, Message* msg);
 
 static Session* sessions;
+static size_t nsess;
 
 Worker* workers[NTHREADS];
 
@@ -212,6 +217,7 @@ int main(void)
         fprintf(stderr, "[main] error while allocating sessions: %s\n", strerror(errno));
         return 1;
     }
+    nsess += NTHREADS;
 
     fprintf(stderr, "[main] creating %lu workers...\n", NTHREADS);
     for (size_t i = 0; i < NTHREADS; i++)
@@ -253,6 +259,7 @@ int main(void)
         perror("epoll_ctl ADD server_fd");
         return 1;
     }
+    printf("[main] added server fd to epoll: %d\n", server_fd);
 
     /*
      * Accept new connections
@@ -268,9 +275,12 @@ int main(void)
             perror("epoll_wait");
             break;
         }
+
         for (int i = 0; i < nevents; i++)
         {
             int fd = events[i].data.fd;
+            printf("[main] fd %d is ready\n", fd);
+
             if (fd == server_fd)
             {
                 struct sockaddr_in client_addr;
@@ -298,27 +308,35 @@ int main(void)
             {
                 Message msg;
                 int ret = msg_recv_header(fd, &msg);
+
                 if (ret == -1)
                 {
-                    // TODO: log system error, unintended disconnection
-                    on_client_disconnected(fd);
-                    epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
-                    close(fd);
-                    perror("msg_recv_header");
+                    if (!(errno == EAGAIN || errno == EWOULDBLOCK))
+                    {
+                        printf("[main] error when trying to receive message: %s\n",
+                            strerror(errno));
+                        on_client_disconnected(fd);
+                        epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
+                        close(fd);
+                        perror("msg_recv_header");
+                    }
                     continue;
                 }
 
                 if (ret == -2)
                 {
                     // TODO: log intentional, clean disconnection
+                    printf("[main] client closed connection\n");
                     on_client_disconnected(fd);
                     epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
                     close(fd);
+                    continue;
                 }
 
                 ret = on_client_message_received(fd, &msg);
                 if (ret == -1)
                 {
+                    printf("[main] client disconnected after sending message\n");
                     on_client_disconnected(fd);
                     epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
                     close(fd);
@@ -326,6 +344,7 @@ int main(void)
             }
             else if (events[i].events & (EPOLLERR | EPOLLHUP))
             {
+                printf("[main] epoll error or hangup caused by client\n");
                 epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
                 close(fd);
                 // TODO: client disconnected cause of epoll error/hangup
@@ -367,6 +386,7 @@ int on_client_message_received(int sockfd, Message* msg)
 
     if (msg->hdr.type != MSGTYPE_AUTH_REQ && uuid_is_null(msg->hdr.token))
     {
+        printf("[main] non authenticated user sent %s message\n", msg_type_to_str(msg->hdr.type));
         msg_init(msg, MSGTYPE_AUTH_FAIL, NULL, 0);
         msg_send(msg, sockfd, NULL, 0);
         return -1;
@@ -490,7 +510,7 @@ void handle_auth(int sockfd, Message* msg)
         if (errno == EEXIST)
         {
             strcpy(error, "Already registered");
-            fprintf(stderr, "[main] user dir already exists\n");
+            fprintf(stderr, "[main] user dir '%s' already exists\n", user_dir);
         }
         msg_init(&res, MSGTYPE_AUTH_FAIL, (byte*)error, strlen(error));
         msg_send(&res, sockfd, NULL, 0);
@@ -505,19 +525,115 @@ void handle_auth(int sockfd, Message* msg)
     }
 }
 
+void send_upload_err(int sockfd, const char* text)
+{
+    Message msg = { 0 };
+    struct {
+        bool isError;
+        size_t len;
+    } upload_res_hdr = {
+        .isError = false,
+        .len = 0,
+    };
+
+    upload_res_hdr.len = strlen(text);
+    upload_res_hdr.isError = true;
+    msg_init(&msg, MSGTYPE_UPLOAD_RES, (void*)text, strlen(text));
+    msg_send(&msg, sockfd, (byte*)&upload_res_hdr, sizeof(upload_res_hdr));
+}
+
+Session* get_session(uuid_t token, FileInfo* info)
+{
+    Session* session = NULL;
+    for (size_t i = 0; i < nsess; i++)
+    {
+        if (sessions[i].user && uuid_compare(sessions[i].user->token, token) == 0)
+        {
+            session = &sessions[i];
+            break;
+        }
+    }
+
+    if (session == NULL)
+    {
+        for (size_t i = 0; i < nsess; i++)
+        {
+            if (sessions[i].user == NULL)
+            {
+                User* user = malloc(sizeof(*user));
+                user->total_space = MAX_USER_SPACE;
+                user->used_space = MAX_USER_SPACE / 2;
+                memcpy(user->token, token, sizeof(user->token));
+
+                session_init(&sessions[i], user, info, SESS_UPLOAD);
+                session = &sessions[i];
+                break;
+            }
+        }
+    }
+
+    return session;
+}
+
 void handle_upload(int sockfd, Message* msg)
 {
     fprintf(stderr, "[handle_upload] received upload req\n");
-
-    printf("receiving payload\n");
     msg_recv_payload(sockfd, msg, sizeof(FileInfo));
-    printf("received %zu bytes\n", msg->hdr.length);
 
     FileInfo* info = (FileInfo*)msg->payload;
+    fileinfo_print(info);
 
-    printf("filename: %s\n", info->name);
-    printf("size: %zu\n", info->size);
-    printf("chunk count: %zu\n", info->chunk_count);
+    Session* session = get_session(msg->hdr.token, info);
+    if (session == NULL)
+    {
+        printf("Error: maximum sessions reached");
+        send_upload_err(sockfd, "maximum sessions reached");
+        return;
+    }
+
+    if (session->user->used_space + info->size > session->user->total_space)
+    {
+        send_upload_err(sockfd, "user storage space is not sufficient");
+        return;
+    }
+
+    char root_dir[PATH_MAX];
+    char token_str[37];
+    uuid_unparse(msg->hdr.token, token_str);
+    snprintf(root_dir, sizeof(root_dir), STORAGE_DIR "/%s", token_str);
+
+    int ret = mkdir(root_dir, 0700);
+    if (ret == -1 && errno != EEXIST)
+    {
+        send_upload_err(sockfd, "failed to create user directory");
+        return;
+    }
+
+    char* tmp = strdup(info->filename);
+    char* user_path = dirname(tmp);
+    ret = create_directories_from_path(root_dir, user_path);
+    if (ret == -1)
+    {
+        send_upload_err(sockfd, "invalid path");
+        return;
+    }
+
+    printf("root_dir: %s, info->filename: %s\n", root_dir, info->filename);
+
+    char filename[PATH_MAX * 2];
+    snprintf(filename, sizeof(filename), "%s/%s", root_dir, info->filename);
+    strncpy(info->filename, filename, sizeof(info->filename));
+
+    printf("recving file %s\n", filename);
+    ssize_t res = file_recv(sockfd, info);
+    printf("file recvd %zd\n", res);
+
+    Message succ_msg = { 0 };
+    char* upload_succ = "file successfully uploaded";
+    msg_init(&succ_msg, MSGTYPE_UPLOAD_FIN, (void*)upload_succ, strlen(upload_succ) + 1);
+    msg_send(&succ_msg, sockfd, NULL, 0);
+
+    free(tmp);
 }
 
 void handle_download(int sockfd, Message* msg)
