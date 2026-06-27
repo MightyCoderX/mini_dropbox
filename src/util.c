@@ -258,7 +258,7 @@ char* path_next_dir(const char* full_path, int skip_chars)
         return NULL;
     }
 
-    path[curr_slash] = '/';
+    if (curr_slash >= 0 && curr_slash < len) path[curr_slash] = '/';
 
     int i = curr_slash + 1;
 
@@ -294,18 +294,15 @@ int create_directories_from_path(char* root_dir, char* user_path)
 
     char* dir = path_next_dir(path, root_dir_len - 1);
 
-    printf("full_path: %s\n", path);
     while ((dir = path_next_dir(NULL, 0)) != NULL)
     {
         if (mkdir(dir, 0700) < 0)
         {
-            perror("mkdir");
             if (errno != EEXIST)
             {
                 return -1;
             }
         }
-        printf("%s\n", dir);
     }
 
     free(path);
