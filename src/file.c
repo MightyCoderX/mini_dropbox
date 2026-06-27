@@ -1,7 +1,7 @@
-
 #include <libgen.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <fcntl.h>
@@ -32,6 +32,16 @@ int fileinfo_from_filename(char* filename, FileInfo* out)
     return 0;
 }
 
+void fileinfo_print(FileInfo* info)
+{
+    printf("FileInfo: \n");
+    printf("    size: %zu\n", info->size);
+    printf("    chunk_count: %zu\n", info->chunk_count);
+    printf("    checksum: ");
+    checksum_print(info->checksum);
+    printf("    filename: %s\n", info->filename);
+}
+
 ssize_t file_send(int sockfd, char* filename)
 {
     size_t total_bytes_sent = 0;
@@ -40,18 +50,34 @@ ssize_t file_send(int sockfd, char* filename)
 
     FileInfo info;
     int res = fileinfo_from_filename(filename, &info);
-    if (res < 0)
+    if (res == -1)
     {
-        return res;
+        return -1;
     }
 
     int fd = open(filename, O_RDONLY);
+    if (fd == -1)
+    {
+        perror("open");
+        return -1;
+    }
 
     byte buf[CHUNK_SIZE];
     size_t seq = 0;
-    while (total_bytes_sent < info.size)
+    while (seq < info.chunk_count)
     {
         ssize_t nbytes = read(fd, buf, sizeof(buf));
+        if (nbytes < 0)
+        {
+            perror("read");
+            return -1;
+        }
+
+        if (nbytes == 0)
+        {
+            return -2;
+        }
+
         end += nbytes - 1;
 
         Chunk chunk;
@@ -66,12 +92,14 @@ ssize_t file_send(int sockfd, char* filename)
         Message msg = { 0 };
         while (msg.hdr.type != MSGTYPE_CHUNK_OK)
         {
+            printf("retry sending chunk #%zu\n", seq);
             chunk_send(&chunk, sockfd);
             msg_recv(sockfd, &msg, 0);
         }
+        printf("sent chunk #%zu/%zu\n", seq, info.chunk_count);
         start += nbytes;
         total_bytes_sent += nbytes;
-        seq += 1;
+        seq++;
     }
 
     return total_bytes_sent;
@@ -81,20 +109,25 @@ ssize_t file_recv(int sockfd, FileInfo* info)
 {
     size_t total_bytes_recvd = 0;
 
-    int fd = open(info->filename, O_WRONLY | O_CREAT | O_EXCL);
-    if (fd < 0)
+    int fd = open(info->filename, O_WRONLY | O_CREAT);
+    if (fd == -1)
     {
+        DEBUG_PRINTF("Failed to open file %s\n", info->filename);
+        perror("open");
         return -1;
     }
 
-    Chunk chunk;
+    Chunk chunk = { 0 };
     Message msg = { 0 };
-    while (total_bytes_recvd < info->size)
+    size_t seq = 0;
+    while (seq < info->chunk_count)
     {
         int nbytes = chunk_recv(sockfd, &chunk);
         if (nbytes == -1)
         {
             // generic error
+            perror("chunk_recv");
+            return -1;
             continue;
         }
 
@@ -110,7 +143,9 @@ ssize_t file_recv(int sockfd, FileInfo* info)
 
         write(fd, chunk.data, chunk.hdr.length);
 
+        printf("recvd chunk #%zu/%zu\n", seq, info->chunk_count);
         total_bytes_recvd += chunk.hdr.length;
+        seq++;
     }
 
     return total_bytes_recvd;

@@ -15,6 +15,7 @@ typedef struct {
     char filename[PATH_MAX];
 } FileInfo;
 int fileinfo_from_filename(char* filename, FileInfo* out);
+void fileinfo_print(FileInfo* info);
 
 ssize_t file_send(int sockfd, char* filename);
 ssize_t file_recv(int sockfd, FileInfo* info);
