@@ -19,9 +19,16 @@ void msg_init(Message* self, MessageType type, byte* payload, size_t length)
     self->hdr.type = type;
     self->hdr.sent_at = (struct timespec) { 0, 0 };
     self->rcvd_at = (struct timespec) { 0, 0 };
-    uuid_clear(self->hdr.token);
     self->payload = payload;
     self->payload_len = length;
+}
+
+void msg_clear(Message* self)
+{
+    self->hdr = (MessageHdr) { 0 };
+    self->rcvd_at = (struct timespec) { 0 };
+    self->payload = NULL;
+    self->payload_len = 0;
 }
 
 const char* msg_type_to_str(MessageType type)
@@ -109,7 +116,10 @@ static int recv_all(int sockfd, void* buf, size_t len)
         }
 
         // peer disconnected gracefully, no errno
-        if (nbytes == 0) return -2;
+        if (nbytes == 0)
+        {
+            return -2;
+        }
 
         bytes_left -= nbytes;
         buf_ptr += nbytes;
@@ -139,8 +149,8 @@ int msg_send(Message* self, int sockfd, byte* payload_hdr, size_t payload_hdr_le
     if (self->payload)
     {
         ret = send_all(sockfd, self->payload, self->payload_len, 0);
+        if (ret < 0) return ret;
     }
-    if (ret < 0) return ret;
 
     return 0;
 }
@@ -151,6 +161,8 @@ int msg_recv_header(int sockfd, Message* msg)
 
     int ret = recv_all(sockfd, (void*)&msg->hdr, sizeof(MessageHdr));
     if (ret < 0) return ret;
+
+    clock_gettime(CLOCK_REALTIME, &msg->rcvd_at);
 
     return 0;
 }
@@ -169,10 +181,9 @@ int msg_recv_payload(int sockfd, Message* msg, size_t maxlen)
         if (ret < 0) return ret;
     }
 
-    clock_gettime(CLOCK_REALTIME, &msg->rcvd_at);
-
     return 0;
 }
+
 int msg_recv(int sockfd, Message* msg, size_t maxlen)
 {
     assert(msg != NULL);

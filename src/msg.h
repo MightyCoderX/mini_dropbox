@@ -50,6 +50,11 @@ typedef struct {
  */
 void msg_init(Message* self, MessageType type, byte* payload, size_t length);
 
+/**
+ * Clear fields before receiving
+ */
+void msg_clear(Message* self);
+
 const char* msg_type_to_str(MessageType type);
 void msg_print(Message* self);
 
