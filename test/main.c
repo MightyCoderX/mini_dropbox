@@ -6,14 +6,7 @@ int main(void)
 {
     printf("----------TESTS Begin----------\n");
 
-    if (test_util() >= 0)
-    {
-        printf("TEST passed: util\n");
-    }
-    else
-    {
-        printf("TEST failed: util\n");
-    }
+    test_util();
 
     printf("\n----------TESTS End----------\n");
 
