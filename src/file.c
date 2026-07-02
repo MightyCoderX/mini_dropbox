@@ -132,18 +132,28 @@ ssize_t file_recv(int sockfd, FileInfo* info)
             // generic error
             perror("chunk_recv");
             return -1;
-            continue;
         }
 
-        if (nbytes == -2) // checksum didn't match
+        if (nbytes == -2)
         {
+            break;
+        }
+
+        if (nbytes == -3) // checksum didn't match
+        {
+            printf("checksum didn't match\n");
+
             msg_init(&msg, MSGTYPE_CHUNK_AGAIN, NULL, 0);
-            msg_send(&msg, sockfd, NULL, 0);
+
+            int res = msg_send(&msg, sockfd, NULL, 0);
+            if (res < 0) return res;
+
             continue;
         }
 
         msg_init(&msg, MSGTYPE_CHUNK_OK, NULL, 0);
-        msg_send(&msg, sockfd, NULL, 0);
+        int res = msg_send(&msg, sockfd, NULL, 0);
+        if (res < 0) return res;
 
         write(fd, chunk.data, chunk.hdr.length);
 
