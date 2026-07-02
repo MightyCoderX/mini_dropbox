@@ -12,12 +12,14 @@
 void test_normalize_path(void);
 void test_path_next_dir(void);
 void test_create_directories_from_path(void);
+void test_checksums_match(void);
 
 void test_util(void)
 {
     test_normalize_path();
     test_path_next_dir();
     test_create_directories_from_path();
+    test_checksums_match();
 }
 
 void test_normalize_path(void)
@@ -100,5 +102,34 @@ void test_create_directories_from_path(void)
     else
     {
         FAIL("returned %d", res);
+    }
+}
+
+void test_checksums_match(void)
+{
+    char* data = "Hello, World!";
+    checksum_t chk1;
+    checksum((void*)data, strlen(data), chk1);
+
+    if (checksums_match(chk1, chk1))
+    {
+        PASS("same checksum matched");
+    }
+    else
+    {
+        FAIL("same checksum didn't match");
+    }
+
+    char* data_corrupted = "Hello, Word!";
+    checksum_t chk2;
+    checksum((void*)data_corrupted, strlen(data_corrupted), chk2);
+
+    if (checksums_match(chk1, chk2))
+    {
+        FAIL("different checksums match");
+    }
+    else
+    {
+        PASS("different checksums don't match");
     }
 }
