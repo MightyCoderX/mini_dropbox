@@ -274,7 +274,7 @@ int cmd_upload(char* progname, int argc, char** argv)
 
     fileinfo_print(&info);
 
-    Message msg;
+    Message msg = { 0 };
     ret = load_token(msg.hdr.token);
     if (ret == -1)
     {
@@ -329,7 +329,7 @@ int cmd_upload(char* progname, int argc, char** argv)
 
     if (upload_res_hdr->isError)
     {
-        printf("error: %s\n", msg.payload + sizeof(struct upload_response_hdr_t));
+        printf("server error: %s\n", msg.payload + sizeof(struct upload_response_hdr_t));
         return 1;
     }
 
