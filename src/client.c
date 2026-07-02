@@ -342,7 +342,7 @@ int cmd_upload(char* progname, int argc, char** argv)
     msg_recv_header(sockfd, &msg);
     if (msg.hdr.type == MSGTYPE_UPLOAD_FIN)
     {
-        printf("upload done!");
+        printf("upload done!\n");
     }
 
     // TODO: 1. send UPLOAD_REQ message with token (if token not found, prompt the user to run auth and return 1)
