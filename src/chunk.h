@@ -25,6 +25,7 @@ typedef struct {
 } Chunk;
 
 void chunk_init(Chunk* self, ChunkHdr hdr, byte* data, size_t length);
+void chunk_print(Chunk* self);
 Chunk* chunk_next(FileInfo* info);
 ssize_t chunk_send(Chunk* self, int sockfd);
 ssize_t chunk_recv(int sockfd, Chunk* self);

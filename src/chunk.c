@@ -34,6 +34,18 @@ void chunk_init(Chunk* self, ChunkHdr hdr, byte* data, size_t length)
     checksum(data, length, hdr.checksum);
 }
 
+void chunk_print(Chunk* self)
+{
+    printf("Chunk:\n");
+    printf("    seq: %zu\n", self->hdr.seq);
+    printf("    start_byte: %zu\n", self->hdr.start_byte);
+    printf("    end_byte: %zu\n", self->hdr.end_byte);
+    printf("    length: %zu\n", self->hdr.length);
+    printf("    checksum: ");
+    checksum_print(self->hdr.checksum);
+    printf("    data: %p\n", self->data);
+}
+
 ssize_t chunk_send(Chunk* self, int sockfd)
 {
     Message msg;
