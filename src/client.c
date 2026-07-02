@@ -272,11 +272,7 @@ int cmd_upload(char* progname, int argc, char** argv)
     int sockfd = connect_to_server(server_ip, 1234);
     if (sockfd == -1) return 1;
 
-    printf("filename: %s\n", info.filename);
-    printf("size: %zu\n", info.size);
-    printf("chunk count: %zu\n", info.chunk_count);
-    printf("checksum: ");
-    checksum_print(info.checksum);
+    fileinfo_print(&info);
 
     Message msg;
     ret = load_token(msg.hdr.token);
