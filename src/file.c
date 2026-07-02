@@ -92,9 +92,13 @@ ssize_t file_send(int sockfd, char* filename)
         Message msg = { 0 };
         while (msg.hdr.type != MSGTYPE_CHUNK_OK)
         {
-            printf("retry sending chunk #%zu\n", seq);
-            chunk_send(&chunk, sockfd);
-            msg_recv(sockfd, &msg, 0);
+            printf("sending chunk #%zu\n", seq);
+
+            res = chunk_send(&chunk, sockfd);
+            if (res < 0) return res;
+
+            res = msg_recv(sockfd, &msg, 0);
+            if (res < 0) return res;
         }
         printf("sent chunk #%zu/%zu\n", seq, info.chunk_count);
         start += nbytes;
