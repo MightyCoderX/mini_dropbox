@@ -330,8 +330,10 @@ int cmd_upload(char* progname, int argc, char** argv)
     if (upload_res_hdr->isError)
     {
         printf("server error: %s\n", msg.payload + sizeof(struct upload_response_hdr_t));
+        free(msg.payload);
         return 1;
     }
+    free(msg.payload);
 
     ssize_t res = file_send(sockfd, info.filename);
     printf("upload done: res=%zd\n", res);
