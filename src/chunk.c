@@ -81,10 +81,16 @@ ssize_t chunk_recv(int sockfd, Chunk* self)
     checksum_t chk;
     checksum(self->data, self->hdr.length, chk);
 
+    chunk_print(self);
+
     if (!checksums_match(chk, self->hdr.checksum))
     {
-        return -2;
+        printf("calculated: ");
+        checksum_print(chk);
+        printf("\breceived: ");
+        checksum_print(self->hdr.checksum);
+        return -3;
     }
 
-    return 0;
+    return msg.hdr.length - sizeof(ChunkHdr);
 }
