@@ -528,20 +528,18 @@ void handle_auth(int sockfd, Message* msg)
     }
 }
 
-void send_upload_err(int sockfd, const char* text)
+void send_upload_res(int sockfd, bool isError, const char* text)
 {
     Message msg = { 0 };
     struct {
         bool isError;
         size_t len;
     } upload_res_hdr = {
-        .isError = false,
-        .len = 0,
+        .isError = isError,
+        .len = strlen(text),
     };
 
-    upload_res_hdr.len = strlen(text);
-    upload_res_hdr.isError = true;
-    msg_init(&msg, MSGTYPE_UPLOAD_RES, (void*)text, strlen(text));
+    msg_init(&msg, MSGTYPE_UPLOAD_RES, (void*)text, strlen(text) + 1);
     msg_send(&msg, sockfd, (byte*)&upload_res_hdr, sizeof(upload_res_hdr));
 }
 
@@ -590,13 +588,13 @@ void handle_upload(int sockfd, Message* msg)
     if (session == NULL)
     {
         printf("Error: maximum sessions reached");
-        send_upload_err(sockfd, "maximum sessions reached");
+        send_upload_res(sockfd, true, "maximum sessions reached");
         return;
     }
 
     if (session->user->used_space + info->size > session->user->total_space)
     {
-        send_upload_err(sockfd, "user storage space is not sufficient");
+        send_upload_res(sockfd, true, "user storage space is not sufficient");
         return;
     }
 
@@ -608,7 +606,7 @@ void handle_upload(int sockfd, Message* msg)
     int ret = mkdir(root_dir, 0700);
     if (ret == -1 && errno != EEXIST)
     {
-        send_upload_err(sockfd, "failed to create user directory");
+        send_upload_res(sockfd, true, "failed to create user directory");
         return;
     }
 
@@ -617,11 +615,11 @@ void handle_upload(int sockfd, Message* msg)
     ret = create_directories_from_path(root_dir, user_path);
     if (ret == -1)
     {
-        send_upload_err(sockfd, "invalid path");
+        send_upload_res(sockfd, true, "invalid path");
         return;
     }
 
-    printf("root_dir: %s, info->filename: %s\n", root_dir, info->filename);
+    send_upload_res(sockfd, false, "");
 
     char filename[PATH_MAX * 2];
     snprintf(filename, sizeof(filename), "%s/%s", root_dir, info->filename);
@@ -630,6 +628,12 @@ void handle_upload(int sockfd, Message* msg)
     printf("recving file %s\n", filename);
     ssize_t res = file_recv(sockfd, info);
     printf("file recvd %zd\n", res);
+    if (res == -1)
+    {
+        printf("failed to recv file\n");
+        send_upload_res(sockfd, true, "could not recv file");
+        return;
+    }
 
     Message succ_msg = { 0 };
     char* upload_succ = "file successfully uploaded";
