@@ -123,7 +123,7 @@ void sighandler(int sig)
     }
 }
 
-static void set_nonblock(int fd)
+static void set_blocking(int fd, bool is_blocking)
 {
     int flags = fcntl(fd, F_GETFL, 0);
     if (flags == -1)
@@ -132,7 +132,7 @@ static void set_nonblock(int fd)
         exit(1);
     }
 
-    int err = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    int err = fcntl(fd, F_SETFL, is_blocking ? flags & ~O_NONBLOCK : flags | O_NONBLOCK);
     if (err == -1)
     {
         perror("fcntl F_SETFL");
@@ -157,7 +157,7 @@ int create_server_socket(const char* server_ip, short port, struct sockaddr_in* 
         perror("setsockopt SO_REUSEADDR");
         return -1;
     }
-    set_nonblock(server_fd);
+    set_blocking(server_fd, false);
 
     /*
      * Configure address
@@ -188,6 +188,7 @@ int create_server_socket(const char* server_ip, short port, struct sockaddr_in* 
     return server_fd;
 }
 
+static int epfd = -1;
 int main(void)
 {
     // TODO: use sigaction instead of signal
@@ -242,7 +243,7 @@ int main(void)
     }
     printf("[main] Listening at 0.0.0.0:%d\n\n", PORT);
 
-    int epfd = epoll_create1(0);
+    epfd = epoll_create1(0);
     if (epfd == -1)
     {
         perror("epoll_create1");
@@ -291,7 +292,7 @@ int main(void)
                     perror("accept");
                     continue;
                 }
-                set_nonblock(client_fd);
+                set_blocking(client_fd, false);
 
                 ev.events = EPOLLIN;
                 ev.data.fd = client_fd;
@@ -402,6 +403,8 @@ int on_client_message_received(int sockfd, Message* msg)
     case MSGTYPE_UPLOAD_REQ:
     case MSGTYPE_DOWNLOAD_REQ:
     case MSGTYPE_LIST_REQ:
+        epoll_ctl(epfd, EPOLL_CTL_DEL, sockfd, NULL);
+        set_blocking(sockfd, true);
         on_stream_req(sockfd, msg);
         break;
     case MSGTYPE_AUTH_OK:
