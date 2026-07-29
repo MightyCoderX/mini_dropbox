@@ -92,7 +92,7 @@ ssize_t file_send(int sockfd, char* filename)
         Message msg = { 0 };
         while (msg.hdr.type != MSGTYPE_CHUNK_OK)
         {
-            printf("sending chunk #%zu\n", seq);
+            printf("sending chunk #%zu\n", seq + 1);
 
             res = chunk_send(&chunk, sockfd);
             if (res < 0) return res;
@@ -100,7 +100,7 @@ ssize_t file_send(int sockfd, char* filename)
             res = msg_recv(sockfd, &msg, 0);
             if (res < 0) return res;
         }
-        printf("sent chunk #%zu/%zu\n", seq, info.chunk_count);
+        printf("sent chunk #%zu/%zu\n", seq + 1, info.chunk_count);
         start += nbytes;
         total_bytes_sent += nbytes;
         seq++;
@@ -157,7 +157,7 @@ ssize_t file_recv(int sockfd, FileInfo* info)
 
         write(fd, chunk.data, chunk.hdr.length);
 
-        printf("recvd chunk #%zu/%zu\n", seq, info->chunk_count);
+        printf("recvd chunk #%zu/%zu\n", seq + 1, info->chunk_count);
         total_bytes_recvd += chunk.hdr.length;
         seq++;
     }

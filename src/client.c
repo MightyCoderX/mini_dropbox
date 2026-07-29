@@ -345,16 +345,6 @@ int cmd_upload(char* progname, int argc, char** argv)
         printf("upload done!\n");
     }
 
-    // TODO: 1. send UPLOAD_REQ message with token (if token not found, prompt the user to run auth and return 1)
-    // TODO: 2. if not ack (ex. user has no more space) print error and return 1
-    // TODO: 3. calculate file checksum
-    // TODO: 4. calculate # of chunks needed
-    // TODO: 5. send chunks
-    //         - calculate chunk checksum (parallel to the sending using a 2 threads pool)
-    //         - send chunk
-    //         - wait for ack
-    //         - resend if ack says that remote checksum was different
-    // TODO: 6. send UPLOAD_FIN message
     return 0;
 }
 

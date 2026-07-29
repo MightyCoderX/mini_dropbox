@@ -50,6 +50,8 @@ ssize_t chunk_send(Chunk* self, int sockfd)
 {
     Message msg;
 
+    checksum(self->data, self->hdr.length, self->hdr.checksum);
+
     msg_init(&msg, MSGTYPE_SEND_CHUNK, self->data, self->hdr.length);
     int ret = msg_send(&msg, sockfd, (byte*)&self->hdr, sizeof(self->hdr));
     if (ret < 0) return ret;
@@ -80,8 +82,6 @@ ssize_t chunk_recv(int sockfd, Chunk* self)
 
     checksum_t chk;
     checksum(self->data, self->hdr.length, chk);
-
-    chunk_print(self);
 
     if (!checksums_match(chk, self->hdr.checksum))
     {
