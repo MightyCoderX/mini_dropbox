@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+docker build -t mini_dropbox_server_test:latest .
+
 docker run --rm \
 	-v ./server:/server \
 	-v ~/.local/share/nvim/mason/packages/codelldb/extension/lldb/bin/lldb-server:/bin/lldb-server \
