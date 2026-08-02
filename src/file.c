@@ -96,10 +96,18 @@ ssize_t file_send(int sockfd, char* filename)
             printf("sending chunk #%zu\n", seq + 1);
 
             res = chunk_send(&chunk, sockfd);
-            if (res < 0) return res;
+            if (res < 0)
+            {
+                printf("failed to send chunk #%zu\n", seq + 1);
+                return res;
+            }
 
             res = msg_recv(sockfd, &msg, 0);
-            if (res < 0) return res;
+            if (res < 0)
+            {
+                printf("failed to recv OK or AGAIN\n");
+                return res;
+            }
         }
         printf("sent chunk #%zu/%zu\n", seq + 1, info.chunk_count);
         start += nbytes;
