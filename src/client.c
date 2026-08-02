@@ -447,7 +447,7 @@ static int cmd_download(char* progname, int argc, char** argv)
     strcpy(rcvd_info->filename, argv[1]);
 
     ssize_t res = file_recv(sockfd, rcvd_info);
-    printf("upload done: res=%zd\n", res);
+    printf("download done: res=%zd\n", res);
 
     msg_init(&msg, MSGTYPE_DOWNLOAD_FIN, NULL, 0);
     msg_send(&msg, sockfd, NULL, 0);
