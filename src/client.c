@@ -1,3 +1,4 @@
+#include <libgen.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -444,7 +445,18 @@ static int cmd_download(char* progname, int argc, char** argv)
     FileInfo* rcvd_info = (FileInfo*)(hdr + 1);
     fileinfo_print(rcvd_info);
 
-    strcpy(rcvd_info->filename, argv[1]);
+    char* local_filename = NULL;
+
+    if (argc >= 2)
+    {
+        local_filename = argv[1];
+    }
+    else
+    {
+        local_filename = basename(rcvd_info->filename);
+    }
+
+    strcpy(rcvd_info->filename, local_filename);
 
     ssize_t res = file_recv(sockfd, rcvd_info);
     printf("download done: res=%zd\n", res);
