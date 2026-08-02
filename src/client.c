@@ -350,25 +350,108 @@ int cmd_upload(char* progname, int argc, char** argv)
 
 static int cmd_download(char* progname, int argc, char** argv)
 {
-    (void)progname;
-    (void)argc;
-    (void)argv;
+    if (argc < 1)
+    {
+        print_cmd_usage(progname, CMD_DLOD);
+        return 1;
+    }
 
     int sockfd = connect_to_server(server_ip, 1234);
     if (sockfd == -1) return 1;
 
     Message msg;
-    msg_init(&msg, MSGTYPE_DOWNLOAD_REQ, NULL, 0);
+    int ret = load_token(msg.hdr.token);
+    if (ret == -1)
+    {
+        perror("load_token");
+        return 1;
+    }
+
+    FileInfo info = { 0 };
+    strcpy(info.filename, argv[0]);
+
+    msg_init(&msg, MSGTYPE_DOWNLOAD_REQ, (void*)&info, sizeof(info));
+    ret = msg_send(&msg, sockfd, NULL, 0);
+    if (ret < 0)
+    {
+        printf("error when sending DOWNLOAD_REQ message: ret = %d, errno = %d (%s)\n", ret, errno,
+            strerror(errno));
+        return 1;
+    }
+
+    msg_clear(&msg);
+    ret = msg_recv_header(sockfd, &msg);
+    if (ret == -1)
+    {
+        printf(
+            "error when receiving DOWNLOAD_RES or AUTH_FAIL message: ret = %d, errno = %d (%s)\n",
+            ret, errno, strerror(errno));
+        return 1;
+    }
+    if (ret == -2)
+    {
+        printf("peer disconnected gracefully while receiving DOWNLOAD_RES or AUTH_FAIL: ret = %d\n",
+            ret);
+        return 1;
+    }
+
+    msg_print(&msg);
+
+    if (msg.hdr.type == MSGTYPE_AUTH_FAIL)
+    {
+        fprintf(stderr, "please authenticate first\n");
+        print_cmd_usage(progname, CMD_AUTH);
+        return 1;
+    }
+    else if (msg.hdr.type != MSGTYPE_DOWNLOAD_RES)
+    {
+        printf("expected DOWNLOAD_RES, got %s\n", msg_type_to_str(msg.hdr.type));
+        return 1;
+    }
+
+    ret = msg_recv_payload(sockfd, &msg, 8192);
+    if (ret == -1)
+    {
+        printf("error when receiving DOWNLOAD_RES message: ret = %d, errno = %d (%s)\n", ret, errno,
+            strerror(errno));
+        return 1;
+    }
+    if (ret == -2)
+    {
+        printf("peer disconnected gracefully while receiving DOWNLOAD_RES: ret = %d\n", ret);
+        return 1;
+    }
+    if (ret == -3)
+    {
+        printf("received payload bigger than max\n");
+        return 1;
+    }
+
+    struct download_response_hdr_t {
+        bool isError;
+        size_t len;
+    };
+
+    printf("payload: %p\n", msg.payload);
+
+    struct download_response_hdr_t* hdr = (void*)msg.payload;
+    if (hdr->isError)
+    {
+        char* msg = (char*)(hdr + 1);
+        printf("download error: %s\n", msg);
+        return 1;
+    }
+    FileInfo* rcvd_info = (FileInfo*)(hdr + 1);
+    fileinfo_print(rcvd_info);
+
+    strcpy(rcvd_info->filename, argv[1]);
+
+    ssize_t res = file_recv(sockfd, rcvd_info);
+    printf("upload done: res=%zd\n", res);
+
+    msg_init(&msg, MSGTYPE_DOWNLOAD_FIN, NULL, 0);
     msg_send(&msg, sockfd, NULL, 0);
-    // TODO: 1. send DOWNLOAD_REQ message with token (if token not found, prompt the user to run auth and return 1)
-    // TODO: 2. if not ack (ex. user has no more space) print error and return 1
-    // TODO: 3. get FileInfo from ack message
-    // TODO: 4. receive chunks
-    //          - calculate local chunk checksum
-    //          - compare with received one
-    //          -
-    // TODO: 5. check
-    // TODO: 5. send DOWNLOAD_FIN when download finished
+
     return 0;
 }
 

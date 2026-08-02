@@ -18,6 +18,7 @@ int fileinfo_from_filename(char* filename, FileInfo* out)
     struct stat s;
     if (lstat(filename, &s) < 0)
     {
+        perror("lstat");
         return -1;
     }
 
@@ -113,7 +114,7 @@ ssize_t file_recv(int sockfd, FileInfo* info)
 {
     size_t total_bytes_recvd = 0;
 
-    int fd = open(info->filename, O_WRONLY | O_CREAT);
+    int fd = open(info->filename, O_WRONLY | O_CREAT, 0644);
     if (fd == -1)
     {
         DEBUG_PRINTF("Failed to open file %s\n", info->filename);

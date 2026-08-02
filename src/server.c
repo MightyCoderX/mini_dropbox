@@ -643,11 +643,78 @@ void handle_upload(int sockfd, Message* msg)
     free(tmp);
 }
 
+void send_download_res(int sockfd, bool isError, const char* text)
+{
+    Message msg = { 0 };
+    struct {
+        bool isError;
+        size_t len;
+    } download_res_hdr = {
+        .isError = isError,
+        .len = strlen(text),
+    };
+
+    msg_init(&msg, MSGTYPE_DOWNLOAD_RES, (void*)text, strlen(text) + 1);
+    msg_send(&msg, sockfd, (byte*)&download_res_hdr, sizeof(download_res_hdr));
+}
+
 void handle_download(int sockfd, Message* msg)
 {
-    (void)sockfd;
-    (void)msg;
     fprintf(stderr, "[handle_download] received download req\n");
+
+    msg_recv_payload(sockfd, msg, sizeof(FileInfo));
+    FileInfo* info = (FileInfo*)msg->payload;
+    fileinfo_print(info);
+
+    char root_dir[PATH_MAX];
+    char token_str[37];
+    uuid_unparse(msg->hdr.token, token_str);
+    snprintf(root_dir, sizeof(root_dir), STORAGE_DIR "/%s", token_str);
+
+    char filename[PATH_MAX * 2];
+    snprintf(filename, sizeof(filename), "%s/%s", root_dir, info->filename);
+    strncpy(info->filename, filename, sizeof(info->filename));
+
+    int fd = open(filename, O_RDONLY);
+    if (fd < 0)
+    {
+        if (errno != ENOENT)
+        {
+            send_download_res(sockfd, true, "error while checking if file exists");
+            perror("open");
+            return;
+        }
+
+        send_download_res(sockfd, true, "file doesn't exist");
+        return;
+    }
+
+    printf("file exists!\n");
+    fileinfo_from_filename(filename, info);
+    printf("Sending full info back to client");
+    fileinfo_print(info);
+
+    Session* session = get_session(msg->hdr.token, info);
+    if (session == NULL)
+    {
+        printf("Error: maximum sessions reached");
+        send_download_res(sockfd, true, "maximum sessions reached");
+        return;
+    }
+
+    struct {
+        bool isError;
+        size_t len;
+    } download_res_hdr = {
+        .isError = false,
+        .len = sizeof(*info),
+    };
+    msg_init(msg, MSGTYPE_DOWNLOAD_RES, (void*)info, sizeof(*info));
+    msg_send(msg, sockfd, (void*)&download_res_hdr, sizeof(download_res_hdr));
+
+    printf("sending file %s\n", filename);
+    ssize_t res = file_send(sockfd, info->filename);
+    printf("sent file: res=%zd\n", res);
 }
 
 void handle_list(int sockfd, Message* msg)
