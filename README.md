@@ -42,24 +42,22 @@ in the [Protocol Stack](#protocol-stack) section.
 
 ### Client
 
-- [ ] Authenticate via locally generated token (UUID) sent to server
+- [x] Authenticate via locally generated token (UUID) sent to server
     (not secure, use over `ssh` tunnel for encryption)
-- [ ] Send files in 4KB chunks to make it scalable (configurable via macro)
-- [ ] Receive files in 4KB chunks (configurable via macro)
-- [ ] Per chunk checksum (possibly calculated in parallel to the
-    sending of the token), if checksum doesn't match re request chunk
+- [x] Send files in 4KB chunks to make it scalable (configurable via macro)
+- [x] Receive files in 4KB chunks (configurable via macro)
+- [x] Per chunk checksum if checksum doesn't match re request chunk
 - [ ] Resume interrupted download
 - [ ] Resume interrupted upload
 - [ ] List remote files
 - [ ] Delete remote files
+- [ ] Create remote directory
 
 ### Server
 
-- [ ] Accept and add client tokens to local file in /etc
+- [x] Store each user's files in a token-named after their token
+- [x] Limited user storage space 10GB (same for everyone)
 - [ ] Support multiple parallel transfers
 - [ ] FSM to handle states (i.e. REQUESTING,TRANSFERING,FINISHED)
 - [ ] Thread pool, keeping threads inactive via condition variables
-- [ ] Store each user's files in a token-named after their token
-- [ ] Limited user storage space 10GB (same for everyone)
-- [ ] Completely prevent path traversal using mount namespaces
-        and pivot_root
+- [ ] Completely prevent path traversal using mount namespaces and pivot_root
