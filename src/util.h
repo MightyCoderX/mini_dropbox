@@ -5,8 +5,7 @@
 #include <stddef.h>
 
 #ifndef RELEASE
-#define DEBUG_PRINTF(fmt, ...)                                                                \
-    fprintf(stderr, "[DEBUG] %s:%s():%d: " fmt, __FILE__, __func__, __LINE__, ##__VA_ARGS__);
+#define DEBUG_PRINTF(fmt, ...) fprintf(stderr, "[DEBUG] " fmt, ##__VA_ARGS__);
 #else
 #define DEBUG_PRINTF(fmt, ...)
 #endif
