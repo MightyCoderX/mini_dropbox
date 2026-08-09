@@ -420,6 +420,7 @@ int on_client_message_received(int sockfd, Message* msg)
     case MSGTYPE_FILEINFO:
     case MSGTYPE_CHUNK_OK:
     case MSGTYPE_CHUNK_AGAIN:
+    case MSGTYPE_ERROR:
         fprintf(stderr, "invalid message received %s\n", msg_type_to_str(msg->hdr.type));
         break;
     case MSGTYPE_NONE:
@@ -444,6 +445,7 @@ void on_oneshot_req(int sockfd, Message* msg)
         handle_remove(sockfd, msg);
         break;
     case MSGTYPE_NONE:
+    case MSGTYPE_ERROR:
     case MSGTYPE_AUTH_OK:
     case MSGTYPE_AUTH_FAIL:
     case MSGTYPE_UPLOAD_REQ:
@@ -478,6 +480,7 @@ void on_stream_req(int sockfd, Message* msg)
         handle_list(sockfd, msg);
         break;
     case MSGTYPE_NONE:
+    case MSGTYPE_ERROR:
     case MSGTYPE_AUTH_REQ:
     case MSGTYPE_AUTH_OK:
     case MSGTYPE_AUTH_FAIL:

@@ -7,6 +7,7 @@
 
 #define MSGTYPES                                    \
     X(MSGTYPE_NONE, "MSGTYPE_NONE")                 \
+    X(MSGTYPE_ERROR, "MSGTYPE_ERROR")               \
     X(MSGTYPE_AUTH_REQ, "MSGTYPE_AUTH_REQ")         \
     X(MSGTYPE_AUTH_OK, "MSGTYPE_AUTH_OK")           \
     X(MSGTYPE_AUTH_FAIL, "MSGTYPE_AUTH_FAIL")       \
