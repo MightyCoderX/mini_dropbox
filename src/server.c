@@ -417,6 +417,7 @@ int on_client_message_received(int sockfd, Message* msg)
     case MSGTYPE_REMOVE_OK:
     case MSGTYPE_REMOVE_FAIL:
     case MSGTYPE_SEND_CHUNK:
+    case MSGTYPE_FILEINFO:
     case MSGTYPE_CHUNK_OK:
     case MSGTYPE_CHUNK_AGAIN:
         fprintf(stderr, "invalid message received %s\n", msg_type_to_str(msg->hdr.type));
@@ -456,6 +457,7 @@ void on_oneshot_req(int sockfd, Message* msg)
     case MSGTYPE_REMOVE_OK:
     case MSGTYPE_REMOVE_FAIL:
     case MSGTYPE_SEND_CHUNK:
+    case MSGTYPE_FILEINFO:
     case MSGTYPE_CHUNK_OK:
     case MSGTYPE_CHUNK_AGAIN:
         break;
@@ -487,6 +489,7 @@ void on_stream_req(int sockfd, Message* msg)
     case MSGTYPE_REMOVE_REQ:
     case MSGTYPE_REMOVE_OK:
     case MSGTYPE_REMOVE_FAIL:
+    case MSGTYPE_FILEINFO:
     case MSGTYPE_SEND_CHUNK:
     case MSGTYPE_CHUNK_OK:
     case MSGTYPE_CHUNK_AGAIN:
