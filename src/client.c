@@ -207,14 +207,14 @@ int load_token(uuid_t token)
         }
         read(fd, token_str, sizeof(token_str));
         uuid_parse(token_str, token);
-        fprintf(stderr, "Read token from file %s\n", tokfile_path);
+        DEBUG_PRINTF("Read token from file %s\n", tokfile_path);
     }
     else
     {
         uuid_generate(token);
         uuid_unparse(token, token_str);
         write(fd, token_str, sizeof(token_str));
-        fprintf(stderr, "Wrote token to file %s\n", tokfile_path);
+        DEBUG_PRINTF("Wrote token to file %s\n", tokfile_path);
     }
     return 0;
 }

@@ -150,7 +150,7 @@ ssize_t file_recv(int sockfd, FileInfo* info)
 
         if (nbytes == -3) // checksum didn't match
         {
-            printf("checksum didn't match\n");
+            DEBUG_PRINTF("checksum didn't match\n");
 
             msg_init(&msg, MSGTYPE_CHUNK_AGAIN, NULL, 0);
 
