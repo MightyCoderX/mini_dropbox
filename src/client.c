@@ -516,8 +516,14 @@ static int cmd_rm(int sockfd, char* progname, int argc, char** argv)
     ret = msg_recv_header(sockfd, &msg);
     if (!handle_recv_error(ret, MSGTYPE_REMOVE_RES)) return 1;
 
+    if (msg.hdr.type != MSGTYPE_ERROR && msg.hdr.type != MSGTYPE_REMOVE_RES)
+    {
+        printf("expected MSGTYPE_REMOVE_RES or ERROR, got %s\n", msg_type_to_str(msg.hdr.type));
         return 1;
     }
+
+    ret = msg_recv_payload(sockfd, &msg, 8192);
+    if (!handle_recv_error(ret, MSGTYPE_REMOVE_RES)) return 1;
 
     if (msg.hdr.type == MSGTYPE_ERROR)
     {
