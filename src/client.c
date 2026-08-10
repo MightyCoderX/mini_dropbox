@@ -1,4 +1,3 @@
-#include <libgen.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,6 +10,7 @@
 #include <errno.h>
 #include <linux/limits.h>
 #include <uuid/uuid.h>
+#include <libgen.h>
 
 #include "file.h"
 #include "msg.h"
