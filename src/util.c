@@ -20,6 +20,7 @@
 #include "util.h"
 #include "chunk.h"
 #include "msg.h"
+#include "server.h"
 #include "types.h"
 
 const char* xdg_dir_to_str(XDGDir dir)
@@ -400,4 +401,35 @@ bool handle_recv_error(int ret, MessageType type)
     }
 
     return false;
+}
+
+int get_user_root(uuid_t token, char* out)
+{
+    char tokenstr[37];
+    uuid_unparse(token, tokenstr);
+    snprintf(out, PATH_MAX, "%s/%s", STORAGE_DIR, tokenstr);
+    return 0;
+}
+
+char* get_user_path(char* path, uuid_t token)
+{
+    char root_dir[PATH_MAX];
+    get_user_root(token, root_dir);
+    char abs_path[PATH_MAX * 2];
+    snprintf(abs_path, sizeof(abs_path), "%s/%s", root_dir, path);
+    char* normalized = normalize_path(abs_path);
+    if (normalized == NULL)
+    {
+        DEBUG_PRINTF("Failed to normalize path '%s'\n", path);
+        return NULL;
+    }
+
+    if (strncmp(normalized, root_dir, strlen(root_dir)) != 0)
+    {
+        // user tried a path traversal attack
+        printf("client sent invalid path %s\n", path);
+        return NULL;
+    }
+
+    return normalized;
 }

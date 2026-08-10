@@ -41,4 +41,8 @@ int send_download_res(int sockfd, byte* payload, size_t len);
 int rm_r(const char* path);
 
 bool handle_recv_error(int ret, MessageType type);
+
+int get_user_root(uuid_t token, char* out);
+char* get_user_path(char* path, uuid_t token);
+
 #endif // !UTIL_H
