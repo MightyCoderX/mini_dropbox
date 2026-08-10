@@ -462,16 +462,67 @@ static int cmd_download(char* progname, int argc, char** argv)
 
 static int cmd_list(char* progname, int argc, char** argv)
 {
-    (void)progname;
-    (void)argc;
-    (void)argv;
+    if (argc > 1)
+    {
+        print_cmd_usage(progname, CMD_LIST);
+        return 1;
+    }
 
+    char* path = argc == 1 ? argv[0] : "";
     int sockfd = connect_to_server(server_ip, 1234);
     if (sockfd == -1) return 1;
 
     Message msg;
-    msg_init(&msg, MSGTYPE_LIST_REQ, NULL, 0);
+    int ret = load_token(msg.hdr.token);
+    if (ret == -1)
+    {
+        perror("load_token");
+        return 1;
+    }
+    msg_init(&msg, MSGTYPE_LIST_REQ, (void*)path, strlen(path) + 1);
     msg_send(&msg, sockfd, NULL, 0);
+
+    while (true)
+    {
+        ret = msg_recv(sockfd, &msg, sizeof(FileInfo));
+
+        if (ret < 0)
+        {
+            switch (ret)
+            {
+            case -1:
+                printf("error when receiving MSGTYPE_FILEINFO message: ret = %d, errno = %d (%s)\n",
+                    ret, errno, strerror(errno));
+                break;
+            case -2:
+                printf("peer disconnected gracefully while receiving MSGTYPE_FILEINFO: ret = %d\n",
+                    ret);
+                break;
+            case -3:
+                printf("received payload bigger than max\n");
+                break;
+            }
+
+            return 1;
+        }
+
+        if (msg.hdr.type != MSGTYPE_FILEINFO)
+        {
+            break;
+        }
+        FileInfo* info = (FileInfo*)msg.payload;
+        printf("%zu\t%s\n", info->size, info->filename);
+        free(msg.payload);
+    }
+
+    if (msg.hdr.type == MSGTYPE_ERROR)
+    {
+        printf("error while receiving file list: %s\n", msg.payload);
+        free(msg.payload);
+        return 1;
+    }
+
+    printf("listing done\n");
     return 0;
 }
 
