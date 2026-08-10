@@ -33,7 +33,7 @@ int fileinfo_from_filename(char* filename, FileInfo* out)
     out->chunk_count = ceil((float)s.st_size / CHUNK_SIZE);
     if (file_checksum(filename, out->checksum) == -1)
     {
-        return -1;
+        return -3;
     }
 
     return 0;
