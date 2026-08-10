@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <libgen.h>
 #include <math.h>
 #include <stddef.h>
@@ -20,6 +21,11 @@ int fileinfo_from_filename(char* filename, FileInfo* out)
     {
         perror("lstat");
         return -1;
+    }
+
+    if ((s.st_mode & S_IFMT) != S_IFREG)
+    {
+        return -2;
     }
 
     strcpy(out->filename, filename);
