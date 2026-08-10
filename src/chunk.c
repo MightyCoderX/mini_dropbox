@@ -94,3 +94,8 @@ ssize_t chunk_recv(int sockfd, Chunk* self)
 
     return msg.hdr.length - sizeof(ChunkHdr);
 }
+
+void chunk_free(Chunk* self)
+{
+    free(self->data - sizeof(ChunkHdr));
+}

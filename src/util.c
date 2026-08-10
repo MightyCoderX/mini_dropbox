@@ -98,6 +98,7 @@ u32 checksum(const byte* data, size_t data_len, checksum_t checksum)
     EVP_DigestUpdate(ctx, data, data_len);
     u32 checksum_len;
     EVP_DigestFinal_ex(ctx, checksum, &checksum_len);
+    EVP_MD_CTX_free(ctx);
 
     return checksum_len;
 }

@@ -30,4 +30,6 @@ Chunk* chunk_next(FileInfo* info);
 ssize_t chunk_send(Chunk* self, int sockfd);
 ssize_t chunk_recv(int sockfd, Chunk* self);
 
+void chunk_free(Chunk* self);
+
 #endif // !CHUNK_PROTO_H

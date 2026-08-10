@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <fcntl.h>
@@ -171,6 +172,8 @@ ssize_t file_recv(int sockfd, FileInfo* info)
         if (res < 0) return res;
 
         write(fd, chunk.data, chunk.hdr.length);
+
+        chunk_free(&chunk);
 
         printf("recvd chunk #%zu/%zu\n", seq + 1, info->chunk_count);
         total_bytes_recvd += chunk.hdr.length;
