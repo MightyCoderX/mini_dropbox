@@ -534,21 +534,6 @@ void handle_auth(int sockfd, Message* msg)
     }
 }
 
-void send_upload_res(int sockfd, bool isError, const char* text)
-{
-    Message msg = { 0 };
-    struct {
-        bool isError;
-        size_t len;
-    } upload_res_hdr = {
-        .isError = isError,
-        .len = strlen(text),
-    };
-
-    msg_init(&msg, MSGTYPE_UPLOAD_RES, (void*)text, strlen(text) + 1);
-    msg_send(&msg, sockfd, (byte*)&upload_res_hdr, sizeof(upload_res_hdr));
-}
-
 Session* get_session(uuid_t token, FileInfo* info)
 {
     Session* session = NULL;
@@ -594,13 +579,13 @@ void handle_upload(int sockfd, Message* msg)
     if (session == NULL)
     {
         printf("Error: maximum sessions reached");
-        send_upload_res(sockfd, true, "maximum sessions reached");
+        send_error(sockfd, "maximum sessions reached");
         return;
     }
 
     if (session->user->used_space + info->size > session->user->total_space)
     {
-        send_upload_res(sockfd, true, "user storage space is not sufficient");
+        send_error(sockfd, "user storage space is not sufficient");
         return;
     }
 
@@ -612,7 +597,7 @@ void handle_upload(int sockfd, Message* msg)
     int ret = mkdir(root_dir, 0700);
     if (ret == -1 && errno != EEXIST)
     {
-        send_upload_res(sockfd, true, "failed to create user directory");
+        send_error(sockfd, "failed to create user directory");
         return;
     }
 
@@ -621,11 +606,11 @@ void handle_upload(int sockfd, Message* msg)
     ret = create_directories_from_path(root_dir, user_path);
     if (ret == -1)
     {
-        send_upload_res(sockfd, true, "invalid path");
+        send_error(sockfd, "invalid path");
         return;
     }
 
-    send_upload_res(sockfd, false, "");
+    send_upload_res(sockfd, NULL, 0);
 
     char filename[PATH_MAX * 2];
     snprintf(filename, sizeof(filename), "%s/%s", root_dir, info->filename);
@@ -637,7 +622,7 @@ void handle_upload(int sockfd, Message* msg)
     if (res == -1)
     {
         printf("failed to recv file\n");
-        send_upload_res(sockfd, true, "could not recv file");
+        send_error(sockfd, "could not recv file");
         return;
     }
 
@@ -647,21 +632,6 @@ void handle_upload(int sockfd, Message* msg)
     msg_send(&succ_msg, sockfd, NULL, 0);
 
     free(tmp);
-}
-
-void send_download_res(int sockfd, bool isError, const char* text)
-{
-    Message msg = { 0 };
-    struct {
-        bool isError;
-        size_t len;
-    } download_res_hdr = {
-        .isError = isError,
-        .len = strlen(text),
-    };
-
-    msg_init(&msg, MSGTYPE_DOWNLOAD_RES, (void*)text, strlen(text) + 1);
-    msg_send(&msg, sockfd, (byte*)&download_res_hdr, sizeof(download_res_hdr));
 }
 
 void handle_download(int sockfd, Message* msg)
@@ -686,12 +656,12 @@ void handle_download(int sockfd, Message* msg)
     {
         if (errno != ENOENT)
         {
-            send_download_res(sockfd, true, "error while checking if file exists");
+            send_error(sockfd, "error while checking if file exists");
             perror("open");
             return;
         }
 
-        send_download_res(sockfd, true, "file doesn't exist");
+        send_error(sockfd, "file doesn't exist");
         return;
     }
 
@@ -704,19 +674,11 @@ void handle_download(int sockfd, Message* msg)
     if (session == NULL)
     {
         printf("Error: maximum sessions reached");
-        send_download_res(sockfd, true, "maximum sessions reached");
+        send_error(sockfd, "maximum sessions reached");
         return;
     }
 
-    struct {
-        bool isError;
-        size_t len;
-    } download_res_hdr = {
-        .isError = false,
-        .len = sizeof(*info),
-    };
-    msg_init(msg, MSGTYPE_DOWNLOAD_RES, (void*)info, sizeof(*info));
-    msg_send(msg, sockfd, (void*)&download_res_hdr, sizeof(download_res_hdr));
+    send_download_res(sockfd, (void*)info, sizeof(*info));
 
     printf("sending file %s\n", filename);
     ssize_t res = file_send(sockfd, info->filename);

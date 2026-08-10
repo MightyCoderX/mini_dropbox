@@ -32,4 +32,9 @@ int stridx(const char* str, char c);
 char* path_next_dir(const char* full_path, int skip_chars);
 int create_directories_from_path(char* root_dir, char* user_path);
 
+int send_error(int sockfd, char* text);
+
+int send_upload_res(int sockfd, byte* payload, size_t len);
+int send_download_res(int sockfd, byte* payload, size_t len);
+
 #endif // !UTIL_H

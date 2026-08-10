@@ -18,6 +18,7 @@
 
 #include "util.h"
 #include "chunk.h"
+#include "msg.h"
 #include "types.h"
 
 const char* xdg_dir_to_str(XDGDir dir)
@@ -307,4 +308,25 @@ int create_directories_from_path(char* root_dir, char* user_path)
 
     free(path);
     return 0;
+}
+
+int send_error(int sockfd, char* text)
+{
+    Message msg = { 0 };
+    msg_init(&msg, MSGTYPE_ERROR, (void*)text, strlen(text) + 1);
+    return msg_send(&msg, sockfd, NULL, 0);
+}
+
+int send_upload_res(int sockfd, byte* payload, size_t len)
+{
+    Message msg = { 0 };
+    msg_init(&msg, MSGTYPE_UPLOAD_RES, payload, len);
+    return msg_send(&msg, sockfd, NULL, 0);
+}
+
+int send_download_res(int sockfd, byte* payload, size_t len)
+{
+    Message msg = { 0 };
+    msg_init(&msg, MSGTYPE_DOWNLOAD_RES, payload, len);
+    return msg_send(&msg, sockfd, NULL, 0);
 }
