@@ -315,26 +315,18 @@ int cmd_upload(char* progname, int argc, char** argv)
         print_cmd_usage(progname, CMD_AUTH);
         return 1;
     }
+    else if (msg.hdr.type == MSGTYPE_ERROR)
+    {
+        msg_recv_payload(sockfd, &msg, 8192);
+        printf("server error: %s\n", msg.payload);
+        free(msg.payload);
+        return 1;
+    }
     else if (msg.hdr.type != MSGTYPE_UPLOAD_RES)
     {
         printf("expected MSGTYPE_UPLOAD_RES, got %s\n", msg_type_to_str(msg.hdr.type));
         return 1;
     }
-
-    struct upload_response_hdr_t {
-        bool isError;
-        size_t len;
-    };
-    msg_recv_payload(sockfd, &msg, 4096);
-    struct upload_response_hdr_t* upload_res_hdr = (struct upload_response_hdr_t*)msg.payload;
-
-    if (upload_res_hdr->isError)
-    {
-        printf("server error: %s\n", msg.payload + sizeof(struct upload_response_hdr_t));
-        free(msg.payload);
-        return 1;
-    }
-    free(msg.payload);
 
     ssize_t res = file_send(sockfd, info.filename);
     printf("upload done: res=%zd\n", res);
@@ -344,6 +336,10 @@ int cmd_upload(char* progname, int argc, char** argv)
     if (msg.hdr.type == MSGTYPE_UPLOAD_FIN)
     {
         printf("upload done!\n");
+    }
+    else
+    {
+        printf("expected MSGTYPE_UPLOAD_FIN got %s!\n", msg_type_to_str(msg.hdr.type));
     }
 
     return 0;
@@ -404,6 +400,13 @@ static int cmd_download(char* progname, int argc, char** argv)
         print_cmd_usage(progname, CMD_AUTH);
         return 1;
     }
+    else if (msg.hdr.type == MSGTYPE_ERROR)
+    {
+        msg_recv_payload(sockfd, &msg, 8192);
+        printf("download error: %s\n", msg.payload);
+        free(msg.payload);
+        return 1;
+    }
     else if (msg.hdr.type != MSGTYPE_DOWNLOAD_RES)
     {
         printf("expected DOWNLOAD_RES, got %s\n", msg_type_to_str(msg.hdr.type));
@@ -428,21 +431,9 @@ static int cmd_download(char* progname, int argc, char** argv)
         return 1;
     }
 
-    struct download_response_hdr_t {
-        bool isError;
-        size_t len;
-    };
-
     printf("payload: %p\n", msg.payload);
 
-    struct download_response_hdr_t* hdr = (void*)msg.payload;
-    if (hdr->isError)
-    {
-        char* msg = (char*)(hdr + 1);
-        printf("download error: %s\n", msg);
-        return 1;
-    }
-    FileInfo* rcvd_info = (FileInfo*)(hdr + 1);
+    FileInfo* rcvd_info = (FileInfo*)msg.payload;
     fileinfo_print(rcvd_info);
 
     char* local_filename = NULL;
@@ -463,6 +454,8 @@ static int cmd_download(char* progname, int argc, char** argv)
 
     msg_init(&msg, MSGTYPE_DOWNLOAD_FIN, NULL, 0);
     msg_send(&msg, sockfd, NULL, 0);
+
+    free(msg.payload);
 
     return 0;
 }
