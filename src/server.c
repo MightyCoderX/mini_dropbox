@@ -416,8 +416,7 @@ int on_client_message_received(int sockfd, Message* msg)
     case MSGTYPE_DOWNLOAD_RES:
     case MSGTYPE_DOWNLOAD_FIN:
     case MSGTYPE_LIST_RES:
-    case MSGTYPE_REMOVE_OK:
-    case MSGTYPE_REMOVE_FAIL:
+    case MSGTYPE_REMOVE_RES:
     case MSGTYPE_SEND_CHUNK:
     case MSGTYPE_FILEINFO:
     case MSGTYPE_CHUNK_OK:
@@ -458,8 +457,7 @@ void on_oneshot_req(int sockfd, Message* msg)
     case MSGTYPE_DOWNLOAD_FIN:
     case MSGTYPE_LIST_REQ:
     case MSGTYPE_LIST_RES:
-    case MSGTYPE_REMOVE_OK:
-    case MSGTYPE_REMOVE_FAIL:
+    case MSGTYPE_REMOVE_RES:
     case MSGTYPE_SEND_CHUNK:
     case MSGTYPE_FILEINFO:
     case MSGTYPE_CHUNK_OK:
@@ -492,8 +490,7 @@ void on_stream_req(int sockfd, Message* msg)
     case MSGTYPE_DOWNLOAD_FIN:
     case MSGTYPE_LIST_RES:
     case MSGTYPE_REMOVE_REQ:
-    case MSGTYPE_REMOVE_OK:
-    case MSGTYPE_REMOVE_FAIL:
+    case MSGTYPE_REMOVE_RES:
     case MSGTYPE_FILEINFO:
     case MSGTYPE_SEND_CHUNK:
     case MSGTYPE_CHUNK_OK:
@@ -855,11 +852,11 @@ void handle_remove(int sockfd, Message* msg)
 
     DEBUG_PRINTF("file %s successfully deleted\n", info.filename);
 
-    msg_init(msg, MSGTYPE_FILEINFO, (byte*)&info, sizeof(info));
+    msg_init(msg, MSGTYPE_REMOVE_RES, (byte*)&info, sizeof(info));
     ret = msg_send(msg, sockfd, NULL, 0);
     if (ret < 0)
     {
-        perror("msg_send(MSGTYPE_FILEINFO)");
+        perror("msg_send(MSGTYPE_REMOVE_RES)");
         return;
     }
 

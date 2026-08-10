@@ -586,9 +586,9 @@ static int cmd_rm(int sockfd, char* progname, int argc, char** argv)
         return 1;
     }
 
-    if (msg.hdr.type != MSGTYPE_FILEINFO)
+    if (msg.hdr.type != MSGTYPE_REMOVE_RES)
     {
-        printf("expected MSGTYPE_FILEINFO or MSGTYPE_ERROR, got %s\n",
+        printf("expected MSGTYPE_REMOVE_RES or MSGTYPE_ERROR, got %s\n",
             msg_type_to_str(msg.hdr.type));
         return 1;
     }
