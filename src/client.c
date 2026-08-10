@@ -14,9 +14,11 @@
 
 #include "file.h"
 #include "msg.h"
+#include "types.h"
 #include "util.h"
 
 #define DEFAULT_SERVER_IP "127.0.0.1"
+#define DEFAULT_SERVER_PORT 1234
 
 #define streq(str1, str2) (strcmp(str1, str2) == 0)
 
@@ -38,15 +40,15 @@ typedef struct {
     CommandID id;
     const char* name;
     const char* usage;
-    int (*func)(char* progname, int argc, char** argv);
+    int (*func)(int sockfd, char* progname, int argc, char** argv);
 } Command;
 
-static int cmd_help(char* progname, int argc, char** argv);
-static int cmd_auth(char* progname, int argc, char** argv);
-static int cmd_upload(char* progname, int argc, char** argv);
-static int cmd_download(char* progname, int argc, char** argv);
-static int cmd_list(char* progname, int argc, char** argv);
-static int cmd_rm(char* progname, int argc, char** argv);
+static int cmd_help(int sockfd, char* progname, int argc, char** argv);
+static int cmd_auth(int sockfd, char* progname, int argc, char** argv);
+static int cmd_upload(int sockfd, char* progname, int argc, char** argv);
+static int cmd_download(int sockfd, char* progname, int argc, char** argv);
+static int cmd_list(int sockfd, char* progname, int argc, char** argv);
+static int cmd_rm(int sockfd, char* progname, int argc, char** argv);
 
 static Command commands[] = {
 #define X(id, name, usage, func) { id, name, usage, func },
@@ -68,6 +70,7 @@ static void print_help(char* progname);
 void print_cmd_usage(char* progname, CommandID id);
 
 static char server_ip[INET_ADDRSTRLEN] = DEFAULT_SERVER_IP;
+static u16 server_port = DEFAULT_SERVER_PORT;
 
 int main(int argc, char** argv)
 {
@@ -99,6 +102,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    int sockfd = -1;
     switch (cmd->id)
     {
     case CMD_HELP:
@@ -108,10 +112,11 @@ int main(int argc, char** argv)
     case CMD_ULOD:
     case CMD_LIST:
     case CMD_RMFI:
-        // TODO: ideally open socket here for commands that need it
+        sockfd = connect_to_server(server_ip, server_port);
+        if (sockfd == -1) return 1;
         break;
     }
-    return cmd->func(argv[0], argc - (optind + 1), &argv[optind + 1]);
+    return cmd->func(sockfd, argv[0], argc - (optind + 1), &argv[optind + 1]);
 }
 
 static void print_help(char* progname)
@@ -155,8 +160,9 @@ void print_cmd_usage(char* progname, CommandID id)
     fprintf(stderr, "usage: %s %s %s\n", progname, cmd.name, cmd.usage);
 }
 
-int cmd_help(char* progname, int argc, char** argv)
+int cmd_help(int sockfd, char* progname, int argc, char** argv)
 {
+    (void)sockfd;
     if (argc < 1)
     {
         print_help(progname);
@@ -219,7 +225,7 @@ int load_token(uuid_t token)
     return 0;
 }
 
-int cmd_auth(char* progname, int argc, char** argv)
+int cmd_auth(int sockfd, char* progname, int argc, char** argv)
 {
     (void)argc;
     (void)progname;
@@ -234,9 +240,6 @@ int cmd_auth(char* progname, int argc, char** argv)
         perror("load_token");
         return 1;
     }
-
-    int sockfd = connect_to_server(server_ip, 1234);
-    if (sockfd == -1) return 1;
 
     res = msg_send(&msg, sockfd, NULL, 0);
     if (res == -1)
@@ -254,7 +257,7 @@ int cmd_auth(char* progname, int argc, char** argv)
     return 0;
 }
 
-int cmd_upload(char* progname, int argc, char** argv)
+int cmd_upload(int sockfd, char* progname, int argc, char** argv)
 {
     if (argc < 1)
     {
@@ -269,9 +272,6 @@ int cmd_upload(char* progname, int argc, char** argv)
         fprintf(stderr, "%s: %s\n", argv[0], strerror(errno));
         return 1;
     }
-
-    int sockfd = connect_to_server(server_ip, 1234);
-    if (sockfd == -1) return 1;
 
     fileinfo_print(&info);
 
@@ -345,16 +345,13 @@ int cmd_upload(char* progname, int argc, char** argv)
     return 0;
 }
 
-static int cmd_download(char* progname, int argc, char** argv)
+static int cmd_download(int sockfd, char* progname, int argc, char** argv)
 {
     if (argc < 1)
     {
         print_cmd_usage(progname, CMD_DLOD);
         return 1;
     }
-
-    int sockfd = connect_to_server(server_ip, 1234);
-    if (sockfd == -1) return 1;
 
     Message msg;
     int ret = load_token(msg.hdr.token);
@@ -460,7 +457,7 @@ static int cmd_download(char* progname, int argc, char** argv)
     return 0;
 }
 
-static int cmd_list(char* progname, int argc, char** argv)
+static int cmd_list(int sockfd, char* progname, int argc, char** argv)
 {
     if (argc > 1)
     {
@@ -469,8 +466,6 @@ static int cmd_list(char* progname, int argc, char** argv)
     }
 
     char* path = argc == 1 ? argv[0] : "";
-    int sockfd = connect_to_server(server_ip, 1234);
-    if (sockfd == -1) return 1;
 
     Message msg;
     int ret = load_token(msg.hdr.token);
@@ -526,7 +521,7 @@ static int cmd_list(char* progname, int argc, char** argv)
     return 0;
 }
 
-static int cmd_rm(char* progname, int argc, char** argv)
+static int cmd_rm(int sockfd, char* progname, int argc, char** argv)
 {
     if (argc < 1)
     {
@@ -535,9 +530,6 @@ static int cmd_rm(char* progname, int argc, char** argv)
     }
 
     char* filename = argv[0];
-
-    int sockfd = connect_to_server(server_ip, 1234);
-    if (sockfd == -1) return 1;
 
     Message msg;
     int ret = load_token(msg.hdr.token);

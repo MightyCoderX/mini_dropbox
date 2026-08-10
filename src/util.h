@@ -18,7 +18,7 @@ typedef enum {
 const char* xdg_dir_to_str(XDGDir dir);
 int xdg_get_dir(XDGDir dir, char* out_path, size_t max_len);
 
-int connect_to_server(char* server_ip, short port);
+int connect_to_server(char* server_ip, u16 port);
 
 typedef byte checksum_t[32];
 

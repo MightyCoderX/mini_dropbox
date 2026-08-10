@@ -54,7 +54,7 @@ int xdg_get_dir(XDGDir dir, char* out_path, size_t max_len)
     return -1;
 }
 
-int connect_to_server(char* server_ip, short port)
+int connect_to_server(char* server_ip, u16 port)
 {
     assert(server_ip != NULL);
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
