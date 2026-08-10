@@ -528,15 +528,79 @@ static int cmd_list(char* progname, int argc, char** argv)
 
 static int cmd_rm(char* progname, int argc, char** argv)
 {
-    (void)progname;
-    (void)argc;
-    (void)argv;
+    if (argc < 1)
+    {
+        print_cmd_usage(progname, CMD_RMFI);
+        return 1;
+    }
+
+    char* filename = argv[0];
 
     int sockfd = connect_to_server(server_ip, 1234);
     if (sockfd == -1) return 1;
 
     Message msg;
-    msg_init(&msg, MSGTYPE_REMOVE_REQ, NULL, 0);
-    msg_send(&msg, sockfd, NULL, 0);
+    int ret = load_token(msg.hdr.token);
+    if (ret == -1)
+    {
+        perror("load_token");
+        return 1;
+    }
+    msg_init(&msg, MSGTYPE_REMOVE_REQ, (byte*)filename, strlen(filename) + 1);
+    ret = msg_send(&msg, sockfd, NULL, 0);
+    if (ret < 0)
+    {
+        switch (ret)
+        {
+        case -1:
+            printf("error when sending MSGTYPE_REMOVE_REQ message: ret = %d, errno = %d (%s)\n",
+                ret, errno, strerror(errno));
+            break;
+        case -2:
+            printf("peer disconnected gracefully while sending MSGTYPE_REMOVE_REQ: ret = %d\n",
+                ret);
+            break;
+        }
+        return 1;
+    }
+
+    ret = msg_recv(sockfd, &msg, 8192);
+    if (ret < 0)
+    {
+        switch (ret)
+        {
+        case -1:
+            printf("error when receiving MSGTYPE_FILEINFO message: ret = %d, errno = %d (%s)\n",
+                ret, errno, strerror(errno));
+            break;
+        case -2:
+            printf("peer disconnected gracefully while receiving MSGTYPE_FILEINFO: ret = %d\n",
+                ret);
+            break;
+        case -3:
+            printf("received payload bigger than max\n");
+            break;
+        }
+
+        return 1;
+    }
+
+    if (msg.hdr.type == MSGTYPE_ERROR)
+    {
+        printf("error deleting file: %s\n", msg.payload);
+        return 1;
+    }
+
+    if (msg.hdr.type != MSGTYPE_FILEINFO)
+    {
+        printf("expected MSGTYPE_FILEINFO or MSGTYPE_ERROR, got %s\n",
+            msg_type_to_str(msg.hdr.type));
+        return 1;
+    }
+
+    FileInfo* info = (FileInfo*)msg.payload;
+    printf("deleted file: %s\n", info->filename);
+    fileinfo_print(info);
+
     return 0;
 }

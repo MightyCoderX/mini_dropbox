@@ -37,4 +37,6 @@ int send_error(int sockfd, char* text);
 int send_upload_res(int sockfd, byte* payload, size_t len);
 int send_download_res(int sockfd, byte* payload, size_t len);
 
+int rm_r(const char* path);
+
 #endif // !UTIL_H

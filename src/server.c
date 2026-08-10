@@ -778,7 +778,90 @@ void handle_list(int sockfd, Message* msg)
 
 void handle_remove(int sockfd, Message* msg)
 {
-    (void)sockfd;
-    (void)msg;
     fprintf(stderr, "[handle_remove] received remove req\n");
+    int ret = msg_recv_payload(sockfd, msg, 8192);
+    if (ret < 0)
+    {
+        switch (ret)
+        {
+        case -1:
+            printf("error when receiving MSGTYPE_REMOVE_REQ message: ret = %d, errno = %d (%s)\n",
+                ret, errno, strerror(errno));
+            break;
+        case -2:
+            printf("peer disconnected gracefully while receiving MSGTYPE_REMOVE_REQ: ret = %d\n",
+                ret);
+            break;
+        case -3:
+            printf("received payload bigger than max\n");
+            break;
+        }
+
+        return;
+    }
+
+    char* path = (char*)msg->payload;
+    char root_dir[PATH_MAX];
+    char token[37];
+    uuid_unparse(msg->hdr.token, token);
+    snprintf(root_dir, sizeof(root_dir), "%s/%s", STORAGE_DIR, token);
+    char abs_path[PATH_MAX * 2];
+    snprintf(abs_path, sizeof(abs_path), "%s/%s", root_dir, path);
+    char* normalized = normalize_path(abs_path);
+    if (normalized == NULL)
+    {
+        DEBUG_PRINTF("Failed to normalize path '%s'\n", path);
+        return;
+    }
+
+    if (strncmp(normalized, root_dir, strlen(root_dir)) != 0)
+    {
+        // user tried a path traversal attack
+        printf("client sent invalid path %s\n", path);
+        send_error(sockfd, "invalid path");
+        return;
+    }
+
+    DEBUG_PRINTF("normalized: %s\n", normalized);
+
+    FileInfo info = { 0 };
+    ret = fileinfo_from_filename(normalized, &info);
+    if (ret < 0 && ret != -2)
+    {
+        switch (ret)
+        {
+        case -1:
+            printf("failed to stat file\n");
+            break;
+        case -3:
+            printf("failed to calculate file checksum\n");
+            break;
+        }
+        send_error(sockfd, "failed to get fileinfo from filename\n");
+        return;
+    }
+
+    if (ret == -2)
+    {
+        strcpy(info.filename, normalized);
+    }
+
+    if (rm_r(normalized) == -1)
+    {
+        send_error(sockfd, strerror(errno));
+        perror("unlink");
+        return;
+    }
+
+    DEBUG_PRINTF("file %s successfully deleted\n", info.filename);
+
+    msg_init(msg, MSGTYPE_FILEINFO, (byte*)&info, sizeof(info));
+    ret = msg_send(msg, sockfd, NULL, 0);
+    if (ret < 0)
+    {
+        perror("msg_send(MSGTYPE_FILEINFO)");
+        return;
+    }
+
+    DEBUG_PRINTF("sent FileInfo of deleted file\n");
 }

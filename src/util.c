@@ -1,4 +1,5 @@
 #include <asm-generic/errno-base.h>
+#include <dirent.h>
 #include <errno.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -329,4 +330,52 @@ int send_download_res(int sockfd, byte* payload, size_t len)
     Message msg = { 0 };
     msg_init(&msg, MSGTYPE_DOWNLOAD_RES, payload, len);
     return msg_send(&msg, sockfd, NULL, 0);
+}
+
+int rm_r(const char* path)
+{
+    if (path == NULL)
+    {
+        return -1;
+    }
+
+    struct stat s;
+    if (lstat(path, &s) < 0)
+    {
+        perror("lstat");
+        return -1;
+    }
+
+    if ((s.st_mode & S_IFMT) != S_IFDIR)
+    {
+        return unlink(path);
+    }
+
+    DIR* dir = opendir(path);
+    if (dir == NULL)
+    {
+        perror("opendir");
+        return -1;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL)
+    {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+        {
+            continue;
+        }
+
+        char filepath[PATH_MAX];
+        snprintf(filepath, sizeof(filepath), "%s/%s", path, entry->d_name);
+
+        rm_r(filepath);
+    }
+
+    if (rmdir(path) < 0)
+    {
+        perror("rmdir");
+        return -1;
+    }
+    return 0;
 }
