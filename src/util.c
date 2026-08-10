@@ -289,7 +289,7 @@ int create_directories_from_path(char* root_dir, char* user_path)
     if (strncmp(root_dir, path, root_dir_len) != 0)
     {
         free(path);
-        return -1;
+        return -2;
     }
 
     user_path = &path[root_dir_len];
@@ -302,7 +302,7 @@ int create_directories_from_path(char* root_dir, char* user_path)
         {
             if (errno != EEXIST)
             {
-                return -1;
+                return -3;
             }
         }
     }
