@@ -528,6 +528,7 @@ static int cmd_rm(int sockfd, char* progname, int argc, char** argv)
     if (msg.hdr.type == MSGTYPE_ERROR)
     {
         printf("error deleting file: %s\n", msg.payload);
+        free(msg.payload);
         return 1;
     }
 
@@ -535,6 +536,7 @@ static int cmd_rm(int sockfd, char* progname, int argc, char** argv)
     {
         printf("expected MSGTYPE_REMOVE_RES or MSGTYPE_ERROR, got %s\n",
             msg_type_to_str(msg.hdr.type));
+        free(msg.payload);
         return 1;
     }
 
@@ -542,6 +544,7 @@ static int cmd_rm(int sockfd, char* progname, int argc, char** argv)
     printf("deleted file: %s\n", info->filename);
     fileinfo_print(info);
 
+    free(msg.payload);
     return 0;
 }
 
