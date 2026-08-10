@@ -28,7 +28,8 @@
     X(CMD_ULOD, "upload", "<local_file> [remote_file]", cmd_upload)     \
     X(CMD_DLOD, "download", "<remote_file> [local_file]", cmd_download) \
     X(CMD_LIST, "ls", "[path]", cmd_list)                               \
-    X(CMD_RMFI, "rm", "<remote_file>", cmd_rm)
+    X(CMD_RMFI, "rm", "<remote_file>", cmd_rm)                          \
+    X(CMD_MDIR, "mkdir", "<remote_path>", cmd_mkdir)
 
 typedef enum {
 #define X(id, name, usage, func) id,
@@ -49,6 +50,7 @@ static int cmd_upload(int sockfd, char* progname, int argc, char** argv);
 static int cmd_download(int sockfd, char* progname, int argc, char** argv);
 static int cmd_list(int sockfd, char* progname, int argc, char** argv);
 static int cmd_rm(int sockfd, char* progname, int argc, char** argv);
+static int cmd_mkdir(int sockfd, char* progname, int argc, char** argv);
 
 static Command commands[] = {
 #define X(id, name, usage, func) { id, name, usage, func },
@@ -112,6 +114,7 @@ int main(int argc, char** argv)
     case CMD_ULOD:
     case CMD_LIST:
     case CMD_RMFI:
+    case CMD_MDIR:
         sockfd = connect_to_server(server_ip, server_port);
         if (sockfd == -1) return 1;
         break;
@@ -593,6 +596,16 @@ static int cmd_rm(int sockfd, char* progname, int argc, char** argv)
     FileInfo* info = (FileInfo*)msg.payload;
     printf("deleted file: %s\n", info->filename);
     fileinfo_print(info);
+
+    return 0;
+}
+
+static int cmd_mkdir(int sockfd, char* progname, int argc, char** argv)
+{
+    (void)sockfd;
+    (void)progname;
+    (void)argc;
+    (void)argv;
 
     return 0;
 }
