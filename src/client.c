@@ -378,19 +378,7 @@ static int cmd_download(int sockfd, char* progname, int argc, char** argv)
 
     msg_clear(&msg);
     ret = msg_recv_header(sockfd, &msg);
-    if (ret == -1)
-    {
-        printf(
-            "error when receiving DOWNLOAD_RES or AUTH_FAIL message: ret = %d, errno = %d (%s)\n",
-            ret, errno, strerror(errno));
-        return 1;
-    }
-    if (ret == -2)
-    {
-        printf("peer disconnected gracefully while receiving DOWNLOAD_RES or AUTH_FAIL: ret = %d\n",
-            ret);
-        return 1;
-    }
+    if (!handle_recv_error(ret, MSGTYPE_DOWNLOAD_RES)) return 1;
 
     msg_print(&msg);
 
@@ -414,22 +402,7 @@ static int cmd_download(int sockfd, char* progname, int argc, char** argv)
     }
 
     ret = msg_recv_payload(sockfd, &msg, 8192);
-    if (ret == -1)
-    {
-        printf("error when receiving DOWNLOAD_RES message: ret = %d, errno = %d (%s)\n", ret, errno,
-            strerror(errno));
-        return 1;
-    }
-    if (ret == -2)
-    {
-        printf("peer disconnected gracefully while receiving DOWNLOAD_RES: ret = %d\n", ret);
-        return 1;
-    }
-    if (ret == -3)
-    {
-        printf("received payload bigger than max\n");
-        return 1;
-    }
+    if (!handle_recv_error(ret, MSGTYPE_DOWNLOAD_RES)) return 1;
 
     printf("payload: %p\n", msg.payload);
 
@@ -483,26 +456,7 @@ static int cmd_list(int sockfd, char* progname, int argc, char** argv)
     while (true)
     {
         ret = msg_recv(sockfd, &msg, sizeof(FileInfo));
-
-        if (ret < 0)
-        {
-            switch (ret)
-            {
-            case -1:
-                printf("error when receiving MSGTYPE_FILEINFO message: ret = %d, errno = %d (%s)\n",
-                    ret, errno, strerror(errno));
-                break;
-            case -2:
-                printf("peer disconnected gracefully while receiving MSGTYPE_FILEINFO: ret = %d\n",
-                    ret);
-                break;
-            case -3:
-                printf("received payload bigger than max\n");
-                break;
-            }
-
-            return 1;
-        }
+        if (!handle_recv_error(ret, MSGTYPE_FILEINFO)) return 1;
 
         if (msg.hdr.type != MSGTYPE_FILEINFO)
         {
@@ -559,23 +513,8 @@ static int cmd_rm(int sockfd, char* progname, int argc, char** argv)
         return 1;
     }
 
-    ret = msg_recv(sockfd, &msg, 8192);
-    if (ret < 0)
-    {
-        switch (ret)
-        {
-        case -1:
-            printf("error when receiving MSGTYPE_FILEINFO message: ret = %d, errno = %d (%s)\n",
-                ret, errno, strerror(errno));
-            break;
-        case -2:
-            printf("peer disconnected gracefully while receiving MSGTYPE_FILEINFO: ret = %d\n",
-                ret);
-            break;
-        case -3:
-            printf("received payload bigger than max\n");
-            break;
-        }
+    ret = msg_recv_header(sockfd, &msg);
+    if (!handle_recv_error(ret, MSGTYPE_REMOVE_RES)) return 1;
 
         return 1;
     }

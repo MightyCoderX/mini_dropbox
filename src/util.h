@@ -1,6 +1,7 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+#include "msg.h"
 #include "types.h"
 #include <stddef.h>
 
@@ -39,4 +40,5 @@ int send_download_res(int sockfd, byte* payload, size_t len);
 
 int rm_r(const char* path);
 
+bool handle_recv_error(int ret, MessageType type);
 #endif // !UTIL_H

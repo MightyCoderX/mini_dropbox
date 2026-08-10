@@ -379,3 +379,25 @@ int rm_r(const char* path)
     }
     return 0;
 }
+
+bool handle_recv_error(int ret, MessageType type)
+{
+    if (ret >= 0) return true;
+
+    switch (ret)
+    {
+    case -1:
+        printf("error when receiving %s message: ret = %d, errno = %d (%s)\n",
+            msg_type_to_str(type), ret, errno, strerror(errno));
+        break;
+    case -2:
+        printf("peer disconnected gracefully while receiving %s: ret = %d\n", msg_type_to_str(type),
+            ret);
+        break;
+    case -3:
+        printf("received payload bigger than max\n");
+        break;
+    }
+
+    return false;
+}
