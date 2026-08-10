@@ -297,18 +297,7 @@ int cmd_upload(int sockfd, char* progname, int argc, char** argv)
 
     msg_clear(&msg);
     ret = msg_recv_header(sockfd, &msg);
-    if (ret == -1)
-    {
-        printf("error when receiving UPLOAD_RES or AUTH_FAIL message: ret = %d, errno = %d (%s)\n",
-            ret, errno, strerror(errno));
-        return 1;
-    }
-    if (ret == -2)
-    {
-        printf("peer disconnected gracefully while receiving UPLOAD_RES or AUTH_FAIL: ret = %d\n",
-            ret);
-        return 1;
-    }
+    if (!handle_recv_error(ret, MSGTYPE_UPLOAD_RES)) return 1;
 
     msg_print(&msg);
 
