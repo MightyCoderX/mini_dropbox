@@ -779,32 +779,17 @@ void handle_remove(int sockfd, Message* msg)
         return;
     }
 
-    char* path = (char*)msg->payload;
-    char root_dir[PATH_MAX];
-    char token[37];
-    uuid_unparse(msg->hdr.token, token);
-    snprintf(root_dir, sizeof(root_dir), "%s/%s", STORAGE_DIR, token);
-    char abs_path[PATH_MAX * 2];
-    snprintf(abs_path, sizeof(abs_path), "%s/%s", root_dir, path);
-    char* normalized = normalize_path(abs_path);
-    if (normalized == NULL)
+    char* filepath = get_user_path((char*)msg->payload, msg->hdr.token);
+    if (filepath == NULL)
     {
-        DEBUG_PRINTF("Failed to normalize path '%s'\n", path);
-        return;
-    }
-
-    if (strncmp(normalized, root_dir, strlen(root_dir)) != 0)
-    {
-        // user tried a path traversal attack
-        printf("client sent invalid path %s\n", path);
         send_error(sockfd, "invalid path");
         return;
     }
 
-    DEBUG_PRINTF("normalized: %s\n", normalized);
+    DEBUG_PRINTF("normalized: %s\n", filepath);
 
     FileInfo info = { 0 };
-    ret = fileinfo_from_filename(normalized, &info);
+    ret = fileinfo_from_filename(filepath, &info);
     if (ret < 0 && ret != -2)
     {
         switch (ret)
@@ -822,10 +807,10 @@ void handle_remove(int sockfd, Message* msg)
 
     if (ret == -2)
     {
-        strcpy(info.filename, normalized);
+        strcpy(info.filename, filepath);
     }
 
-    if (rm_r(normalized) == -1)
+    if (rm_r(filepath) == -1)
     {
         send_error(sockfd, strerror(errno));
         perror("unlink");
