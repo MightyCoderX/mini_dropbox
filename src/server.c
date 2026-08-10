@@ -591,19 +591,10 @@ void handle_upload(int sockfd, Message* msg)
         return;
     }
 
-    char* tmp = strdup(info->filename);
-    char* user_path = dirname(tmp);
-    ret = create_directories_from_path(root_dir, user_path);
-    if (ret == -1)
-    {
-        send_error(sockfd, "invalid path");
-        return;
-    }
-
     send_upload_res(sockfd, NULL, 0);
 
     char filename[PATH_MAX * 2];
-    snprintf(filename, sizeof(filename), "%s/%s", root_dir, info->filename);
+    snprintf(filename, sizeof(filename), "%s/%s", root_dir, strrchr(info->filename, '/'));
     strncpy(info->filename, filename, sizeof(info->filename));
 
     printf("recving file %s\n", filename);
@@ -620,8 +611,6 @@ void handle_upload(int sockfd, Message* msg)
     char* upload_succ = "file successfully uploaded";
     msg_init(&succ_msg, MSGTYPE_UPLOAD_FIN, (void*)upload_succ, strlen(upload_succ) + 1);
     msg_send(&succ_msg, sockfd, NULL, 0);
-
-    free(tmp);
 }
 
 void handle_download(int sockfd, Message* msg)
