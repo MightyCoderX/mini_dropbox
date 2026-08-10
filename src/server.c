@@ -69,6 +69,7 @@ void handle_upload(int sockfd, Message* msg);
 void handle_download(int sockfd, Message* msg);
 void handle_list(int sockfd, Message* msg);
 void handle_remove(int sockfd, Message* msg);
+void handle_mkdir(int sockfd, Message* msg);
 
 static Session* sessions;
 static size_t nsess;
@@ -381,6 +382,7 @@ int on_client_message_received(int sockfd, Message* msg)
     {
     case MSGTYPE_AUTH_REQ:
     case MSGTYPE_REMOVE_REQ:
+    case MSGTYPE_MKDIR_REQ:
         on_oneshot_req(sockfd, msg);
         break;
     // stream requests
@@ -399,6 +401,7 @@ int on_client_message_received(int sockfd, Message* msg)
     case MSGTYPE_DOWNLOAD_FIN:
     case MSGTYPE_LIST_RES:
     case MSGTYPE_REMOVE_RES:
+    case MSGTYPE_MKDIR_RES:
     case MSGTYPE_SEND_CHUNK:
     case MSGTYPE_FILEINFO:
     case MSGTYPE_CHUNK_OK:
@@ -427,6 +430,9 @@ void on_oneshot_req(int sockfd, Message* msg)
     case MSGTYPE_REMOVE_REQ:
         handle_remove(sockfd, msg);
         break;
+    case MSGTYPE_MKDIR_REQ:
+        handle_mkdir(sockfd, msg);
+        break;
     case MSGTYPE_NONE:
     case MSGTYPE_ERROR:
     case MSGTYPE_AUTH_OK:
@@ -440,6 +446,7 @@ void on_oneshot_req(int sockfd, Message* msg)
     case MSGTYPE_LIST_REQ:
     case MSGTYPE_LIST_RES:
     case MSGTYPE_REMOVE_RES:
+    case MSGTYPE_MKDIR_RES:
     case MSGTYPE_SEND_CHUNK:
     case MSGTYPE_FILEINFO:
     case MSGTYPE_CHUNK_OK:
@@ -473,6 +480,8 @@ void on_stream_req(int sockfd, Message* msg)
     case MSGTYPE_LIST_RES:
     case MSGTYPE_REMOVE_REQ:
     case MSGTYPE_REMOVE_RES:
+    case MSGTYPE_MKDIR_RES:
+    case MSGTYPE_MKDIR_REQ:
     case MSGTYPE_FILEINFO:
     case MSGTYPE_SEND_CHUNK:
     case MSGTYPE_CHUNK_OK:
@@ -828,4 +837,41 @@ void handle_remove(int sockfd, Message* msg)
     }
 
     DEBUG_PRINTF("sent FileInfo of deleted file\n");
+}
+
+void handle_mkdir(int sockfd, Message* msg)
+{
+    int ret = msg_recv_payload(sockfd, msg, 8192);
+    if (!handle_recv_error(ret, MSGTYPE_MKDIR_REQ)) return;
+
+    char root_dir[PATH_MAX];
+    get_user_root(msg->hdr.token, root_dir);
+
+    ret = create_directories_from_path(root_dir, (char*)msg->payload);
+    if (ret < 0)
+    {
+        switch (ret)
+        {
+        case -1:
+        case -2:
+            send_error(sockfd, "invalid path");
+            break;
+        case -3:
+            send_error(sockfd, strerror(errno));
+            break;
+        }
+        return;
+    }
+
+    DEBUG_PRINTF("directory successfully created\n");
+
+    msg_init(msg, MSGTYPE_MKDIR_RES, NULL, 0);
+    ret = msg_send(msg, sockfd, NULL, 0);
+    if (ret < 0)
+    {
+        perror("msg_send(MSGTYPE_MKDIR_RES)");
+        return;
+    }
+
+    DEBUG_PRINTF("sent MSGTYPE_MKDIR_RES\n");
 }

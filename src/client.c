@@ -549,10 +549,42 @@ static int cmd_rm(int sockfd, char* progname, int argc, char** argv)
 
 static int cmd_mkdir(int sockfd, char* progname, int argc, char** argv)
 {
-    (void)sockfd;
-    (void)progname;
-    (void)argc;
-    (void)argv;
+    if (argc != 1)
+    {
+        print_cmd_usage(progname, CMD_MDIR);
+        return 1;
+    }
 
+    char* filename = argv[0];
+
+    Message msg = { 0 };
+    int ret = load_token(msg.hdr.token);
+    if (ret == -1)
+    {
+        perror("load_token");
+        return 1;
+    }
+    msg_init(&msg, MSGTYPE_MKDIR_REQ, (byte*)filename, strlen(filename) + 1);
+    ret = msg_send(&msg, sockfd, NULL, 0);
+
+    ret = msg_recv_header(sockfd, &msg);
+    if (!handle_recv_error(ret, MSGTYPE_MKDIR_RES)) return 1;
+
+    if (msg.hdr.type != MSGTYPE_ERROR && msg.hdr.type != MSGTYPE_MKDIR_RES)
+    {
+        printf("expected MSGTYPE_MKDIR_RES or ERROR, got %s\n", msg_type_to_str(msg.hdr.type));
+        return 1;
+    }
+
+    ret = msg_recv_payload(sockfd, &msg, 8192);
+    if (!handle_recv_error(ret, MSGTYPE_MKDIR_RES)) return 1;
+
+    if (msg.hdr.type == MSGTYPE_ERROR)
+    {
+        printf("failed to create directory: %s\n", msg.payload);
+        return 1;
+    }
+
+    printf("directory created successfully\n");
     return 0;
 }
