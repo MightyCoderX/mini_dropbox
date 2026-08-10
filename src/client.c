@@ -25,7 +25,7 @@
     X(CMD_AUTH, "auth", "", cmd_auth)                                   \
     X(CMD_ULOD, "upload", "<local_file> [remote_file]", cmd_upload)     \
     X(CMD_DLOD, "download", "<remote_file> [local_file]", cmd_download) \
-    X(CMD_LIST, "list", "[path]", cmd_list)                             \
+    X(CMD_LIST, "ls", "[path]", cmd_list)                               \
     X(CMD_RMFI, "rm", "<remote_file>", cmd_rm)
 
 typedef enum {
