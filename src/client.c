@@ -542,7 +542,6 @@ static int cmd_rm(int sockfd, char* progname, int argc, char** argv)
 
     FileInfo* info = (FileInfo*)msg.payload;
     printf("deleted file: %s\n", info->filename);
-    fileinfo_print(info);
 
     free(msg.payload);
     return 0;
