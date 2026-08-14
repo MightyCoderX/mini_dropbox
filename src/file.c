@@ -75,7 +75,7 @@ ssize_t file_send(int sockfd, char* filename)
     while (seq < info.chunk_count)
     {
         ssize_t nbytes = read(fd, buf, sizeof(buf));
-        if (nbytes < 0)
+        if (nbytes == -1)
         {
             perror("read");
             return -1;
@@ -143,16 +143,13 @@ ssize_t file_recv(int sockfd, FileInfo* info)
     while (seq < info->chunk_count)
     {
         int nbytes = chunk_recv(sockfd, &chunk);
-        if (nbytes == -1)
+        if (nbytes < 0)
         {
-            // generic error
-            perror("chunk_recv");
-            return -1;
-        }
-
-        if (nbytes == -2)
-        {
-            break;
+            if (nbytes == -1)
+            {
+                perror("chunk_recv");
+            }
+            return nbytes;
         }
 
         if (nbytes == -3) // checksum didn't match

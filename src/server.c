@@ -607,6 +607,12 @@ void handle_upload(int sockfd, Message* msg)
         return;
     }
 
+    if (res == -2)
+    {
+        printf("client disconnected during transfer\n");
+        return;
+    }
+
     Message succ_msg = { 0 };
     char* upload_succ = "file successfully uploaded";
     msg_init(&succ_msg, MSGTYPE_UPLOAD_FIN, (void*)upload_succ, strlen(upload_succ) + 1);

@@ -65,7 +65,10 @@ ssize_t chunk_recv(int sockfd, Chunk* self)
     int ret = msg_recv_header(sockfd, &msg);
     if (ret < 0)
     {
-        perror("msg_recv_header");
+        if (ret == -1)
+        {
+            perror("msg_recv_header");
+        }
         return ret;
     }
 
