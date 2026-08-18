@@ -73,7 +73,7 @@ ssize_t chunk_recv(int sockfd, Chunk* self)
     if (msg.hdr.length < sizeof(ChunkHdr))
     {
         fprintf(stderr, "chunk received was smaller than ChunkHdr %zu\n", msg.hdr.length);
-        return -1;
+        return -4;
     }
 
     msg_recv_payload(sockfd, &msg, sizeof(ChunkHdr) + CHUNK_SIZE);
