@@ -31,7 +31,7 @@ void chunk_init(Chunk* self, ChunkHdr hdr, byte* data)
 {
     self->hdr = hdr;
     self->data = data;
-    checksum(data, hdr.length, hdr.checksum);
+    checksum(data, hdr.length, self->hdr.checksum);
 }
 
 void chunk_print(Chunk* self)
@@ -49,8 +49,6 @@ void chunk_print(Chunk* self)
 ssize_t chunk_send(Chunk* self, int sockfd)
 {
     Message msg;
-
-    checksum(self->data, self->hdr.length, self->hdr.checksum);
 
     msg_init(&msg, MSGTYPE_SEND_CHUNK, self->data, self->hdr.length);
     int ret = msg_send(&msg, sockfd, (byte*)&self->hdr, sizeof(self->hdr));
