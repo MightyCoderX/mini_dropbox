@@ -17,7 +17,16 @@ typedef struct {
 int fileinfo_from_filename(char* filename, FileInfo* out);
 void fileinfo_print(FileInfo* info);
 
-ssize_t file_send(int sockfd, char* filename);
-ssize_t file_recv(int sockfd, FileInfo* info);
+typedef struct {
+    size_t chunks_sent;
+    ssize_t error_code;
+} FileSendStats;
+FileSendStats file_send(int sockfd, char* filename, size_t start_chunk);
+
+typedef struct {
+    size_t chunks_recvd;
+    ssize_t error_code;
+} FileRecvStats;
+FileRecvStats file_recv(int sockfd, FileInfo* info);
 
 #endif // !FILE_H

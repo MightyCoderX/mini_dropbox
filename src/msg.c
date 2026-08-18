@@ -137,6 +137,7 @@ int msg_send(Message* self, int sockfd, byte* payload_hdr, size_t payload_hdr_le
 
     // we use MSG_MORE to tell the kernel that there is more coming
     // so it can fill the segment with before sending it
+    // TODO: MSG_MORE only if payload_hdr/payload is not null
     int ret = send_all(sockfd, &self->hdr, sizeof(MessageHdr), MSG_MORE);
     if (ret < 0) return ret;
 

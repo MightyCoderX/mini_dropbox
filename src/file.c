@@ -50,43 +50,48 @@ void fileinfo_print(FileInfo* info)
     printf("    filename: %s\n", info->filename);
 }
 
-ssize_t file_send(int sockfd, char* filename)
+FileSendStats file_send(int sockfd, char* filename, size_t start_chunk)
 {
-    size_t total_bytes_sent = 0;
-    size_t start = 0;
-    size_t end = 0;
-
     FileInfo info;
     int res = fileinfo_from_filename(filename, &info);
     if (res == -1)
     {
-        return -1;
+        return (FileSendStats) { 0, -1 };
     }
 
     int fd = open(filename, O_RDONLY);
     if (fd == -1)
     {
         perror("open");
-        return -1;
+        return (FileSendStats) { 0, -1 };
     }
+
+    size_t start = 0;
+    size_t end = 0;
 
     byte buf[CHUNK_SIZE];
     size_t seq = 0;
+    if (start_chunk > 0)
+    {
+        lseek(fd, start_chunk * CHUNK_SIZE, SEEK_SET);
+        start = start_chunk * CHUNK_SIZE;
+        seq = start_chunk;
+    }
     while (seq < info.chunk_count)
     {
         ssize_t nbytes = read(fd, buf, sizeof(buf));
         if (nbytes == -1)
         {
             perror("read");
-            return -1;
+            return (FileSendStats) { seq + 1, -1 };
         }
 
         if (nbytes == 0)
         {
-            return -2;
+            return (FileSendStats) { seq + 1, -1 };
         }
 
-        end += nbytes - 1;
+        end = start + nbytes - 1;
 
         Chunk chunk;
         ChunkHdr hdr = {
@@ -95,7 +100,7 @@ ssize_t file_send(int sockfd, char* filename)
             .end_byte = end,
             .seq = seq,
         };
-        chunk_init(&chunk, hdr, buf, nbytes);
+        chunk_init(&chunk, hdr, buf);
 
         Message msg = { 0 };
         while (msg.hdr.type != MSGTYPE_CHUNK_OK)
@@ -106,35 +111,33 @@ ssize_t file_send(int sockfd, char* filename)
             if (res < 0)
             {
                 printf("failed to send chunk #%zu\n", seq + 1);
-                return res;
+                return (FileSendStats) { seq + 1, -5 };
             }
 
             res = msg_recv(sockfd, &msg, 0);
             if (res < 0)
             {
-                printf("failed to recv OK or AGAIN\n");
-                return res;
+                printf("failed to recv OK or AGAIN: res=%d\n", res);
+                return (FileSendStats) { seq + 1, -6 };
             }
         }
         printf("sent chunk #%zu/%zu\n", seq + 1, info.chunk_count);
+
         start += nbytes;
-        total_bytes_sent += nbytes;
         seq++;
     }
 
-    return total_bytes_sent;
+    return (FileSendStats) { seq, 0 };
 }
 
-ssize_t file_recv(int sockfd, FileInfo* info)
+FileRecvStats file_recv(int sockfd, FileInfo* info)
 {
-    size_t total_bytes_recvd = 0;
-
     int fd = open(info->filename, O_WRONLY | O_CREAT, 0644);
     if (fd == -1)
     {
         DEBUG_PRINTF("Failed to open file %s\n", info->filename);
         perror("open");
-        return -1;
+        return (FileRecvStats) { 0, -1 };
     }
 
     Chunk chunk = { 0 };
@@ -143,14 +146,6 @@ ssize_t file_recv(int sockfd, FileInfo* info)
     while (seq < info->chunk_count)
     {
         int nbytes = chunk_recv(sockfd, &chunk);
-        if (nbytes < 0)
-        {
-            if (nbytes == -1)
-            {
-                perror("chunk_recv");
-            }
-            return nbytes;
-        }
 
         if (nbytes == -3) // checksum didn't match
         {
@@ -159,23 +154,50 @@ ssize_t file_recv(int sockfd, FileInfo* info)
             msg_init(&msg, MSGTYPE_CHUNK_AGAIN, NULL, 0);
 
             int res = msg_send(&msg, sockfd, NULL, 0);
-            if (res < 0) return res;
+            if (res < 0) return (FileRecvStats) { seq, res };
+
+            chunk_free(&chunk);
 
             continue;
         }
 
+        if (nbytes < 0)
+        {
+            if (nbytes == -1)
+            {
+                perror("chunk_recv");
+            }
+            return (FileRecvStats) { seq, nbytes };
+        }
+
+        if (seq == 0 && chunk.hdr.seq > 0)
+        {
+            printf("recv: resuming transfer\n");
+            seq = chunk.hdr.seq;
+            off_t ret = lseek(fd, seq * CHUNK_SIZE, SEEK_SET);
+            if (ret == -1)
+            {
+                perror("lseek");
+                return (FileRecvStats) { seq, -3 };
+            }
+        }
+
+        if (seq != chunk.hdr.seq)
+        {
+            printf("Expected seq=%zu, got seq=%zu\n", seq, chunk.hdr.seq);
+            return (FileRecvStats) { seq, -4 };
+        }
+
         msg_init(&msg, MSGTYPE_CHUNK_OK, NULL, 0);
         int res = msg_send(&msg, sockfd, NULL, 0);
-        if (res < 0) return res;
+        if (res < 0) return (FileRecvStats) { seq, res };
 
         write(fd, chunk.data, chunk.hdr.length);
 
-        chunk_free(&chunk);
-
         printf("recvd chunk #%zu/%zu\n", seq + 1, info->chunk_count);
-        total_bytes_recvd += chunk.hdr.length;
+        chunk_free(&chunk);
         seq++;
     }
 
-    return total_bytes_recvd;
+    return (FileRecvStats) { seq, 0 };
 }

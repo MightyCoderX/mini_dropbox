@@ -301,6 +301,7 @@ int cmd_upload(int sockfd, char* progname, int argc, char** argv)
 
     msg_print(&msg);
 
+    size_t seq = 0;
     if (msg.hdr.type == MSGTYPE_AUTH_FAIL)
     {
         fprintf(stderr, "please authenticate first\n");
@@ -320,8 +321,14 @@ int cmd_upload(int sockfd, char* progname, int argc, char** argv)
         return 1;
     }
 
-    ssize_t res = file_send(sockfd, info.filename);
-    printf("upload done: res=%zd\n", res);
+    ret = msg_recv_payload(sockfd, &msg, sizeof(seq));
+    if (!handle_recv_error(ret, MSGTYPE_UPLOAD_RES)) return 1;
+
+    seq = (size_t)(*msg.payload);
+    printf("seq: %zu\n", seq);
+
+    FileSendStats stats = file_send(sockfd, info.filename, seq);
+    printf("upload done: res=%zd\n", stats.error_code);
 
     msg_clear(&msg);
     msg_recv_header(sockfd, &msg);
@@ -411,8 +418,8 @@ static int cmd_download(int sockfd, char* progname, int argc, char** argv)
 
     strcpy(rcvd_info->filename, local_filename);
 
-    ssize_t res = file_recv(sockfd, rcvd_info);
-    printf("download done: res=%zd\n", res);
+    FileRecvStats stats = file_recv(sockfd, rcvd_info);
+    printf("download done: res=%zd\n", stats.error_code);
 
     free(msg.payload);
     msg_init(&msg, MSGTYPE_DOWNLOAD_FIN, NULL, 0);

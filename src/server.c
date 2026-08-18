@@ -25,6 +25,7 @@
 #include "file.h"
 #include "msg.h"
 #include "user.h"
+#include "user_manager.h"
 #include "util.h"
 #include "session.h"
 #include "server.h"
@@ -61,15 +62,15 @@ void on_client_disconnected(int client_fd);
 
 void handle_client(Worker* w);
 
-void on_oneshot_req(int sockfd, Message* msg);
-void on_stream_req(int sockfd, Message* msg);
+void on_oneshot_req(int sockfd, User* user, Message* msg);
+void on_stream_req(int sockfd, User* user, Message* msg);
 
-void handle_auth(int sockfd, Message* msg);
-void handle_upload(int sockfd, Message* msg);
-void handle_download(int sockfd, Message* msg);
-void handle_list(int sockfd, Message* msg);
-void handle_remove(int sockfd, Message* msg);
-void handle_mkdir(int sockfd, Message* msg);
+void handle_auth(int sockfd, User* user, Message* msg);
+void handle_upload(int sockfd, User* user, Message* msg);
+void handle_download(int sockfd, User* user, Message* msg);
+void handle_list(int sockfd, User* user, Message* msg);
+void handle_remove(int sockfd, User* user, Message* msg);
+void handle_mkdir(int sockfd, User* user, Message* msg);
 
 static Session* sessions;
 static size_t nsess;
@@ -196,6 +197,8 @@ int main(void)
     {
         fprintf(stderr, "[main] created storage directory %s\n", STORAGE_DIR);
     }
+
+    uman_init_user_map();
 
     sessions = calloc(NTHREADS, sizeof(*sessions));
     if (sessions == NULL)
@@ -347,6 +350,8 @@ int main(void)
     // FIX: never reached, put this in cleanup
     close(epfd);
     close(server_fd);
+
+    uman_destroy_user_map();
     return 0;
 }
 
@@ -378,12 +383,15 @@ int on_client_message_received(int sockfd, Message* msg)
         return -1;
     }
 
+    User* user = uman_get_user(msg->hdr.token);
+    user_print(user);
+
     switch (msg->hdr.type)
     {
     case MSGTYPE_AUTH_REQ:
     case MSGTYPE_REMOVE_REQ:
     case MSGTYPE_MKDIR_REQ:
-        on_oneshot_req(sockfd, msg);
+        on_oneshot_req(sockfd, user, msg);
         break;
     // stream requests
     case MSGTYPE_UPLOAD_REQ:
@@ -391,7 +399,7 @@ int on_client_message_received(int sockfd, Message* msg)
     case MSGTYPE_LIST_REQ:
         epoll_ctl(epfd, EPOLL_CTL_DEL, sockfd, NULL);
         set_blocking(sockfd, true);
-        on_stream_req(sockfd, msg);
+        on_stream_req(sockfd, user, msg);
         break;
     case MSGTYPE_AUTH_OK:
     case MSGTYPE_AUTH_FAIL:
@@ -420,18 +428,18 @@ void on_client_disconnected(int client_fd)
     (void)client_fd;
 }
 
-void on_oneshot_req(int sockfd, Message* msg)
+void on_oneshot_req(int sockfd, User* user, Message* msg)
 {
     switch (msg->hdr.type)
     {
     case MSGTYPE_AUTH_REQ:
-        handle_auth(sockfd, msg);
+        handle_auth(sockfd, user, msg);
         break;
     case MSGTYPE_REMOVE_REQ:
-        handle_remove(sockfd, msg);
+        handle_remove(sockfd, user, msg);
         break;
     case MSGTYPE_MKDIR_REQ:
-        handle_mkdir(sockfd, msg);
+        handle_mkdir(sockfd, user, msg);
         break;
     case MSGTYPE_NONE:
     case MSGTYPE_ERROR:
@@ -455,18 +463,18 @@ void on_oneshot_req(int sockfd, Message* msg)
     }
 }
 
-void on_stream_req(int sockfd, Message* msg)
+void on_stream_req(int sockfd, User* user, Message* msg)
 {
     switch (msg->hdr.type)
     {
     case MSGTYPE_UPLOAD_REQ:
-        handle_upload(sockfd, msg);
+        handle_upload(sockfd, user, msg);
         break;
     case MSGTYPE_DOWNLOAD_REQ:
-        handle_download(sockfd, msg);
+        handle_download(sockfd, user, msg);
         break;
     case MSGTYPE_LIST_REQ:
-        handle_list(sockfd, msg);
+        handle_list(sockfd, user, msg);
         break;
     case MSGTYPE_NONE:
     case MSGTYPE_ERROR:
@@ -490,8 +498,9 @@ void on_stream_req(int sockfd, Message* msg)
     }
 }
 
-void handle_auth(int sockfd, Message* msg)
+void handle_auth(int sockfd, User* user, Message* msg)
 {
+    (void)user;
     char token[37];
     uuid_unparse(msg->hdr.token, token);
 
@@ -522,58 +531,26 @@ void handle_auth(int sockfd, Message* msg)
         msg_init(&res, MSGTYPE_AUTH_OK, (byte*)succ, sizeof(succ));
         msg_send(&res, sockfd, NULL, 0);
     }
+    uman_register_user(msg->hdr.token);
 }
 
-Session* get_session(uuid_t token, FileInfo* info)
-{
-    Session* session = NULL;
-    for (size_t i = 0; i < nsess; i++)
-    {
-        if (sessions[i].user && uuid_compare(sessions[i].user->token, token) == 0)
-        {
-            session = &sessions[i];
-            break;
-        }
-    }
-
-    if (session == NULL)
-    {
-        for (size_t i = 0; i < nsess; i++)
-        {
-            if (sessions[i].user == NULL)
-            {
-                User* user = malloc(sizeof(*user));
-                user->total_space = MAX_USER_SPACE;
-                user->used_space = MAX_USER_SPACE / 2;
-                memcpy(user->token, token, sizeof(user->token));
-
-                session_init(&sessions[i], user, info, SESS_UPLOAD);
-                session = &sessions[i];
-                break;
-            }
-        }
-    }
-
-    return session;
-}
-
-void handle_upload(int sockfd, Message* msg)
+void handle_upload(int sockfd, User* user, Message* msg)
 {
     fprintf(stderr, "[handle_upload] received upload req\n");
-    msg_recv_payload(sockfd, msg, sizeof(FileInfo));
+
+    if (user == NULL)
+    {
+        printf("Non authenticated user somehow reached upload handler\n");
+        return;
+    }
+
+    int ret = msg_recv_payload(sockfd, msg, sizeof(FileInfo));
+    if (!handle_recv_error(ret, MSGTYPE_UPLOAD_REQ)) return;
 
     FileInfo* info = (FileInfo*)msg->payload;
     fileinfo_print(info);
 
-    Session* session = get_session(msg->hdr.token, info);
-    if (session == NULL)
-    {
-        printf("Error: maximum sessions reached");
-        send_error(sockfd, "maximum sessions reached");
-        return;
-    }
-
-    if (session->user->used_space + info->size > session->user->total_space)
+    if (user->used_space + info->size > user->total_space)
     {
         send_error(sockfd, "user storage space is not sufficient");
         return;
@@ -584,30 +561,60 @@ void handle_upload(int sockfd, Message* msg)
     uuid_unparse(msg->hdr.token, token_str);
     snprintf(root_dir, sizeof(root_dir), STORAGE_DIR "/%s", token_str);
 
-    int ret = mkdir(root_dir, 0700);
+    char filename[PATH_MAX * 2];
+    snprintf(filename, sizeof(filename), "%s%s", root_dir, strrchr(info->filename, '/'));
+    strncpy(info->filename, filename, sizeof(info->filename));
+
+    size_t seq = 0;
+    Session* session = user_get_session(user, SESS_UPLOAD, info->filename);
+    if (session != NULL)
+    {
+        printf("found previous session\n");
+        session_print(session);
+        if (session->state == SSTATE_INTERRUPTED)
+        {
+            seq = session->chunks_transferred;
+            printf("client interrupted after %zu chunks were transfered\n", seq);
+        }
+    }
+    else
+    {
+        session = malloc(sizeof(*session));
+        session_init(session, info, SESS_UPLOAD);
+        user_add_session(user, session);
+        printf("created new session for new transfer\n");
+        session_print(session);
+    }
+
+    ret = mkdir(root_dir, 0700);
     if (ret == -1 && errno != EEXIST)
     {
         send_error(sockfd, "failed to create user directory");
         return;
     }
 
-    send_upload_res(sockfd, NULL, 0);
+    send_upload_res(sockfd, (byte*)&seq, sizeof(seq));
 
-    char filename[PATH_MAX * 2];
-    snprintf(filename, sizeof(filename), "%s/%s", root_dir, strrchr(info->filename, '/'));
-    strncpy(info->filename, filename, sizeof(info->filename));
+    session->state = SSTATE_RUNNING;
 
     printf("recving file %s\n", filename);
-    ssize_t res = file_recv(sockfd, info);
-    printf("file recvd %zd\n", res);
-    if (res == -1)
+    FileRecvStats stats = file_recv(sockfd, info);
+    printf("file recvd: error_code=%zd, chunks_recvd=%zu\n", stats.error_code, stats.chunks_recvd);
+
+    if (stats.error_code < 0)
+    {
+        session->state = SSTATE_INTERRUPTED;
+        session->chunks_transferred = stats.chunks_recvd;
+    }
+
+    if (stats.error_code == -1)
     {
         printf("failed to recv file\n");
         send_error(sockfd, "could not recv file");
         return;
     }
 
-    if (res == -2)
+    if (stats.error_code == -2)
     {
         printf("client disconnected during transfer\n");
         return;
@@ -617,13 +624,23 @@ void handle_upload(int sockfd, Message* msg)
     char* upload_succ = "file successfully uploaded";
     msg_init(&succ_msg, MSGTYPE_UPLOAD_FIN, (void*)upload_succ, strlen(upload_succ) + 1);
     msg_send(&succ_msg, sockfd, NULL, 0);
+
+    user_remove_session(user, SESS_UPLOAD, info->filename);
 }
 
-void handle_download(int sockfd, Message* msg)
+void handle_download(int sockfd, User* user, Message* msg)
 {
     fprintf(stderr, "[handle_download] received download req\n");
 
-    msg_recv_payload(sockfd, msg, sizeof(FileInfo));
+    if (user == NULL)
+    {
+        printf("Non authenticated user somehow reached upload handler\n");
+        return;
+    }
+
+    int ret = msg_recv_payload(sockfd, msg, sizeof(FileInfo));
+    if (!handle_recv_error(ret, MSGTYPE_UPLOAD_REQ)) return;
+
     FileInfo* info = (FileInfo*)msg->payload;
     fileinfo_print(info);
 
@@ -650,28 +667,47 @@ void handle_download(int sockfd, Message* msg)
         return;
     }
 
+    int start_chunk = 0;
+    Session* session = user_get_session(user, SESS_DOWNLOAD, info->filename);
+    if (session != NULL)
+    {
+        if (session->state == SSTATE_INTERRUPTED)
+        {
+            start_chunk = session->chunks_transferred + 1;
+        }
+    }
+    else
+    {
+        session = malloc(sizeof(*session));
+        session_init(session, info, SESS_DOWNLOAD);
+        user_add_session(user, session);
+    }
+
     printf("file exists!\n");
     fileinfo_from_filename(filename, info);
     printf("Sending full info back to client");
     fileinfo_print(info);
-
-    Session* session = get_session(msg->hdr.token, info);
-    if (session == NULL)
-    {
-        printf("Error: maximum sessions reached");
-        send_error(sockfd, "maximum sessions reached");
-        return;
-    }
-
     send_download_res(sockfd, (void*)info, sizeof(*info));
 
     printf("sending file %s\n", filename);
-    ssize_t res = file_send(sockfd, info->filename);
-    printf("sent file: res=%zd\n", res);
+    FileSendStats stats = file_send(sockfd, info->filename, start_chunk);
+    if (stats.error_code < 0)
+    {
+        session->state = SSTATE_INTERRUPTED;
+        session->chunks_transferred = stats.chunks_sent;
+        printf("download interrupted: res=%zd, errno=%d (%s)\n", stats.error_code, errno,
+            strerror(errno));
+        send_error(sockfd, "transfer interrupted, try again to resume download\n");
+    }
+    else
+    {
+        printf("sent file: res=%zd\n", stats.error_code);
+    }
 }
 
-void handle_list(int sockfd, Message* msg)
+void handle_list(int sockfd, User* user, Message* msg)
 {
+    (void)user;
     fprintf(stderr, "[handle_list] received list req\n");
     int ret = msg_recv_payload(sockfd, msg, PATH_MAX);
     if (ret == -1)
@@ -759,8 +795,9 @@ void handle_list(int sockfd, Message* msg)
     printf("sent MSGTYPE_NONE to terminate listing\n");
 }
 
-void handle_remove(int sockfd, Message* msg)
+void handle_remove(int sockfd, User* user, Message* msg)
 {
+    (void)user;
     fprintf(stderr, "[handle_remove] received remove req\n");
     int ret = msg_recv_payload(sockfd, msg, 8192);
     if (ret < 0)
@@ -834,8 +871,9 @@ void handle_remove(int sockfd, Message* msg)
     DEBUG_PRINTF("sent FileInfo of deleted file\n");
 }
 
-void handle_mkdir(int sockfd, Message* msg)
+void handle_mkdir(int sockfd, User* user, Message* msg)
 {
+    (void)user;
     int ret = msg_recv_payload(sockfd, msg, 8192);
     if (!handle_recv_error(ret, MSGTYPE_MKDIR_REQ)) return;
 
