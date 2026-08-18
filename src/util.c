@@ -1,4 +1,3 @@
-#include <asm-generic/errno-base.h>
 #include <dirent.h>
 #include <errno.h>
 #include <stddef.h>
