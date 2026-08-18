@@ -4,8 +4,8 @@
 #include <stddef.h>
 
 #include <linux/limits.h>
+#include <time.h>
 
-#include "user.h"
 #include "file.h"
 
 typedef enum {
@@ -23,13 +23,16 @@ typedef enum {
 typedef struct {
     SessionType type;
     SessionState state;
-    User* user;
     FileInfo* file_info;
     size_t chunks_transferred;
     struct timespec started_at;
 } Session;
 
-void session_init(Session* self, User* user, FileInfo* file_info, SessionType type);
-void session_destroy(Session* self);
+void session_init(Session* self, FileInfo* file_info, SessionType type);
+
+const char* sesstype_to_str(SessionType type);
+const char* sstate_to_str(SessionState state);
+
+void session_print(Session* self);
 
 #endif // SESSION_H
