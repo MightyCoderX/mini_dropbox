@@ -27,11 +27,11 @@
 //     return NULL;
 // }
 
-void chunk_init(Chunk* self, ChunkHdr hdr, byte* data, size_t length)
+void chunk_init(Chunk* self, ChunkHdr hdr, byte* data)
 {
     self->hdr = hdr;
     self->data = data;
-    checksum(data, length, hdr.checksum);
+    checksum(data, hdr.length, hdr.checksum);
 }
 
 void chunk_print(Chunk* self)
