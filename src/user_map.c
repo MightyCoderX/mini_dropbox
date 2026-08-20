@@ -16,13 +16,13 @@ void umap_init(UserMap* map, size_t capacity)
     memset(map->entries, 0, capacity * sizeof(UserMapEntry*));
 }
 
-static u64 hash(const byte* str)
+static u64 hash(const byte* str, size_t len)
 {
     u64 hash = 5381;
 
-    int c;
-    while ((c = *str++))
+    for (size_t i = 0; i < len; i++)
     {
+        int c = str[i];
         hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
     }
 
@@ -31,7 +31,7 @@ static u64 hash(const byte* str)
 
 static size_t umap_key_to_index(UserMap* map, uuid_t key)
 {
-    return hash(key) % map->capacity;
+    return hash(key, sizeof(uuid_t)) % map->capacity;
 }
 
 int umap_put(UserMap* map, uuid_t key, User* value)
