@@ -425,7 +425,8 @@ int on_client_message_received(int sockfd, Message* msg)
 
 void on_client_disconnected(int client_fd)
 {
-    (void)client_fd;
+    printf("[-] client disconnected: fd=%d\n", client_fd);
+    close(client_fd);
 }
 
 void on_oneshot_req(int sockfd, User* user, Message* msg)
@@ -496,6 +497,7 @@ void on_stream_req(int sockfd, User* user, Message* msg)
     case MSGTYPE_CHUNK_AGAIN:
         break;
     }
+    on_client_disconnected(sockfd);
 }
 
 void handle_auth(int sockfd, User* user, Message* msg)
