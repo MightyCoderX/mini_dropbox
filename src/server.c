@@ -884,7 +884,13 @@ void handle_remove(int sockfd, User* user, Message* msg)
 
 void handle_mkdir(int sockfd, User* user, Message* msg)
 {
-    (void)user;
+    if (user == NULL)
+    {
+        printf("Non authenticated user somehow reached mkdir handler\n");
+        send_error(sockfd, "user not found");
+        return;
+    }
+
     int ret = msg_recv_payload(sockfd, msg, 8192);
     if (!handle_recv_error(ret, MSGTYPE_MKDIR_REQ)) return;
 
