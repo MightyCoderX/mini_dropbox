@@ -522,7 +522,7 @@ void handle_auth(int sockfd, User* user, Message* msg)
             strcpy(error, "Already registered");
             fprintf(stderr, "[main] user dir '%s' already exists\n", user_dir);
         }
-        msg_init(&res, MSGTYPE_AUTH_FAIL, (byte*)error, strlen(error));
+        msg_init(&res, MSGTYPE_AUTH_FAIL, (byte*)error, strlen(error) + 1);
         msg_send(&res, sockfd, NULL, 0);
     }
     else
