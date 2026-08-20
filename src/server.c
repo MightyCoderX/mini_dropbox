@@ -723,6 +723,14 @@ void handle_list(int sockfd, User* user, Message* msg)
 {
     (void)user;
     fprintf(stderr, "[handle_list] received list req\n");
+
+    if (user == NULL)
+    {
+        printf("Non authenticated user somehow reached list handler\n");
+        send_error(sockfd, "user not found");
+        return;
+    }
+
     int ret = msg_recv_payload(sockfd, msg, PATH_MAX);
     if (ret == -1)
     {
