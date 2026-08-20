@@ -749,31 +749,14 @@ void handle_list(int sockfd, User* user, Message* msg)
         return;
     }
 
-    char* path = (char*)msg->payload;
-    char root_dir[PATH_MAX];
-    char token[37];
-    uuid_unparse(msg->hdr.token, token);
-    snprintf(root_dir, sizeof(root_dir), "%s/%s", STORAGE_DIR, token);
-    char abs_path[PATH_MAX * 2];
-    snprintf(abs_path, sizeof(abs_path), "%s/%s", root_dir, path);
-    char* normalized = normalize_path(abs_path);
-    if (normalized == NULL)
+    char* path = get_user_path((char*)msg->payload, msg->hdr.token);
+    if (path == NULL)
     {
         DEBUG_PRINTF("Failed to normalize path '%s'\n", path);
         return;
     }
 
-    if (strncmp(normalized, root_dir, strlen(root_dir)) != 0)
-    {
-        // user tried a path traversal attack
-        printf("client sent invalid path %s\n", path);
-        send_error(sockfd, "invalid path");
-        return;
-    }
-
-    DEBUG_PRINTF("normalized: %s\n", normalized);
-
-    DIR* dir = opendir(normalized);
+    DIR* dir = opendir(path);
     if (dir == NULL)
     {
         perror("opendir");
@@ -790,7 +773,7 @@ void handle_list(int sockfd, User* user, Message* msg)
         }
 
         char filepath[PATH_MAX];
-        snprintf(filepath, sizeof(filepath), "%s/%s", normalized, entry->d_name);
+        snprintf(filepath, sizeof(filepath), "%s/%s", path, entry->d_name);
 
         msg_init(msg, MSGTYPE_FILEINFO, NULL, sizeof(FileInfo));
         msg->payload = malloc(sizeof(FileInfo));
