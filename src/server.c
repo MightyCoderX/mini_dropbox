@@ -819,7 +819,13 @@ void handle_list(int sockfd, User* user, Message* msg)
 
 void handle_remove(int sockfd, User* user, Message* msg)
 {
-    (void)user;
+    if (user == NULL)
+    {
+        printf("Non authenticated user somehow reached remove handler\n");
+        send_error(sockfd, "user not found");
+        return;
+    }
+
     fprintf(stderr, "[handle_remove] received remove req\n");
     int ret = msg_recv_payload(sockfd, msg, 8192);
     if (ret < 0)
