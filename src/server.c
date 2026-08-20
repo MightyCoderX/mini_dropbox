@@ -360,8 +360,8 @@ void on_client_connected(int client_fd, struct sockaddr_in client_addr)
     char ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &client_addr.sin_addr, ip, sizeof(ip));
 
-    printf("[+] new client\n");
-    printf("    connection socket: fd=%d, %s:%d\n", client_fd, ip, ntohs(client_addr.sin_port));
+    printf("[+] new client: sockfd=%d, address=%s:%d\n", client_fd, ip,
+        ntohs(client_addr.sin_port));
 }
 
 int on_client_message_received(int sockfd, Message* msg)
