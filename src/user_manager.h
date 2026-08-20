@@ -7,9 +7,9 @@
 
 extern UserMap user_map;
 
-void uman_init_user_map(void);
+void uman_init(void);
 User* uman_get_user(uuid_t token);
 void uman_register_user(uuid_t token);
-void uman_destroy_user_map(void);
+void uman_deinit(void);
 
 #endif // !_USER_MANAGER_H

@@ -198,7 +198,7 @@ int main(void)
         fprintf(stderr, "[main] created storage directory %s\n", STORAGE_DIR);
     }
 
-    uman_init_user_map();
+    uman_init();
 
     sessions = calloc(NTHREADS, sizeof(*sessions));
     if (sessions == NULL)
@@ -351,7 +351,7 @@ int main(void)
     close(epfd);
     close(server_fd);
 
-    uman_destroy_user_map();
+    uman_deinit();
     return 0;
 }
 
