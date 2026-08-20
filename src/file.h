@@ -18,13 +18,13 @@ int fileinfo_from_filename(char* filename, FileInfo* out);
 void fileinfo_print(FileInfo* info);
 
 typedef struct {
-    size_t chunks_sent;
+    size_t last_chunk_sent;
     ssize_t error_code;
 } FileSendStats;
 FileSendStats file_send(int sockfd, char* filename, size_t start_chunk);
 
 typedef struct {
-    size_t chunks_recvd;
+    size_t last_chunk_recvd;
     ssize_t error_code;
 } FileRecvStats;
 FileRecvStats file_recv(int sockfd, FileInfo* info);

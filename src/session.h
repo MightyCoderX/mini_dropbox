@@ -24,7 +24,7 @@ typedef struct {
     SessionType type;
     SessionState state;
     FileInfo* file_info;
-    size_t chunks_transferred;
+    size_t last_transfered_chunk;
     struct timespec started_at;
 } Session;
 

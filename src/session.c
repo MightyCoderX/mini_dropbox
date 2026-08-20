@@ -7,7 +7,7 @@ void session_init(Session* self, FileInfo* file_info, SessionType type)
     self->state = SSTATE_IDLE;
     self->file_info = file_info;
     clock_gettime(CLOCK_REALTIME, &self->started_at);
-    self->chunks_transferred = 0;
+    self->last_transfered_chunk = 0;
 }
 
 const char* sesstype_to_str(SessionType type)
@@ -49,7 +49,7 @@ void session_print(Session* self)
         printf("  type: %s\n", sesstype_to_str(self->type));
         printf("  state: %s\n", sstate_to_str(self->state));
         printf("  filename: %s\n", self->file_info->filename);
-        printf("  chunks_transferred: %zu\n", self->chunks_transferred);
+        printf("  chunks_transferred: %zu\n", self->last_transfered_chunk);
         printf("  started_at: %zus %zuns\n", self->started_at.tv_sec, self->started_at.tv_nsec);
     }
     else

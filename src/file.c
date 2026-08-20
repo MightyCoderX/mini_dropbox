@@ -111,14 +111,14 @@ FileSendStats file_send(int sockfd, char* filename, size_t start_chunk)
             if (res < 0)
             {
                 printf("failed to send chunk #%zu\n", seq + 1);
-                return (FileSendStats) { seq + 1, -5 };
+                return (FileSendStats) { seq - 1, -5 };
             }
 
             res = msg_recv(sockfd, &msg, 0);
             if (res < 0)
             {
                 printf("failed to recv OK or AGAIN: res=%d\n", res);
-                return (FileSendStats) { seq + 1, -6 };
+                return (FileSendStats) { seq - 1, -6 };
             }
         }
         printf("sent chunk #%zu/%zu\n", seq + 1, info.chunk_count);

@@ -541,6 +541,7 @@ void handle_upload(int sockfd, User* user, Message* msg)
     if (user == NULL)
     {
         printf("Non authenticated user somehow reached upload handler\n");
+        send_error(sockfd, "user not found");
         return;
     }
 
@@ -573,7 +574,7 @@ void handle_upload(int sockfd, User* user, Message* msg)
         session_print(session);
         if (session->state == SSTATE_INTERRUPTED)
         {
-            seq = session->chunks_transferred;
+            seq = session->last_transfered_chunk;
             printf("client interrupted after %zu chunks were transfered\n", seq);
         }
     }
@@ -599,12 +600,13 @@ void handle_upload(int sockfd, User* user, Message* msg)
 
     printf("recving file %s\n", filename);
     FileRecvStats stats = file_recv(sockfd, info);
-    printf("file recvd: error_code=%zd, chunks_recvd=%zu\n", stats.error_code, stats.chunks_recvd);
+    printf("file recvd: error_code=%zd, chunks_recvd=%zu\n", stats.error_code,
+        stats.last_chunk_recvd);
 
     if (stats.error_code < 0)
     {
         session->state = SSTATE_INTERRUPTED;
-        session->chunks_transferred = stats.chunks_recvd;
+        session->last_transfered_chunk = stats.last_chunk_recvd;
     }
 
     if (stats.error_code == -1)
@@ -634,7 +636,8 @@ void handle_download(int sockfd, User* user, Message* msg)
 
     if (user == NULL)
     {
-        printf("Non authenticated user somehow reached upload handler\n");
+        printf("Non authenticated user somehow reached download handler\n");
+        send_error(sockfd, "user not found");
         return;
     }
 
@@ -644,36 +647,33 @@ void handle_download(int sockfd, User* user, Message* msg)
     FileInfo* info = (FileInfo*)msg->payload;
     fileinfo_print(info);
 
-    char root_dir[PATH_MAX];
-    char token_str[37];
-    uuid_unparse(msg->hdr.token, token_str);
-    snprintf(root_dir, sizeof(root_dir), STORAGE_DIR "/%s", token_str);
-
-    char filename[PATH_MAX * 2];
-    snprintf(filename, sizeof(filename), "%s/%s", root_dir, info->filename);
-    strncpy(info->filename, filename, sizeof(info->filename));
-
-    int fd = open(filename, O_RDONLY);
-    if (fd < 0)
+    char* filename = get_user_path(info->filename, msg->hdr.token);
+    if (filename == NULL)
     {
-        if (errno != ENOENT)
-        {
-            send_error(sockfd, "error while checking if file exists");
-            perror("open");
-            return;
-        }
+        fprintf(stderr, "Failed get user path for file %s\n", info->filename);
+        send_error(sockfd, "failed to get user path");
+        return;
+    }
 
+    int found = file_exists(filename);
+    if (found == -1)
+    {
+        send_error(sockfd, "error while checking if file exists");
+        return;
+    }
+    if (!found)
+    {
         send_error(sockfd, "file doesn't exist");
         return;
     }
 
     int start_chunk = 0;
-    Session* session = user_get_session(user, SESS_DOWNLOAD, info->filename);
+    Session* session = user_get_session(user, SESS_DOWNLOAD, filename);
     if (session != NULL)
     {
         if (session->state == SSTATE_INTERRUPTED)
         {
-            start_chunk = session->chunks_transferred + 1;
+            start_chunk = session->last_transfered_chunk + 1;
         }
     }
     else
@@ -683,9 +683,18 @@ void handle_download(int sockfd, User* user, Message* msg)
         user_add_session(user, session);
     }
 
-    printf("file exists!\n");
+    if (info->size > 0)
+    {
+        fileinfo_print(info);
+        start_chunk = info->chunk_count;
+    }
+    else
+    {
+        start_chunk = 0;
+    }
+
     fileinfo_from_filename(filename, info);
-    printf("Sending full info back to client");
+    printf("Sending full info back to client\n");
     fileinfo_print(info);
     send_download_res(sockfd, (void*)info, sizeof(*info));
 
@@ -694,15 +703,18 @@ void handle_download(int sockfd, User* user, Message* msg)
     if (stats.error_code < 0)
     {
         session->state = SSTATE_INTERRUPTED;
-        session->chunks_transferred = stats.chunks_sent;
+        session->last_transfered_chunk = stats.last_chunk_sent;
         printf("download interrupted: res=%zd, errno=%d (%s)\n", stats.error_code, errno,
             strerror(errno));
         send_error(sockfd, "transfer interrupted, try again to resume download\n");
     }
     else
     {
+        user_remove_session(user, SESS_DOWNLOAD, filename);
         printf("sent file: res=%zd\n", stats.error_code);
     }
+
+    free(filename);
 }
 
 void handle_list(int sockfd, User* user, Message* msg)

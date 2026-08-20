@@ -433,3 +433,22 @@ char* get_user_path(char* path, uuid_t token)
 
     return normalized;
 }
+
+int file_exists(const char* filename)
+{
+    errno = 0;
+    int fd = open(filename, O_RDONLY);
+    if (fd < 0)
+    {
+        if (errno != ENOENT)
+        {
+            perror("open");
+            return -1;
+        }
+
+        return 0;
+    }
+
+    close(fd);
+    return 1;
+}

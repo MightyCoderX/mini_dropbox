@@ -1,9 +1,11 @@
+#include <math.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <sys/stat.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -12,6 +14,7 @@
 #include <uuid/uuid.h>
 #include <libgen.h>
 
+#include "chunk.h"
 #include "file.h"
 #include "msg.h"
 #include "types.h"
@@ -251,11 +254,15 @@ int cmd_auth(int sockfd, char* progname, int argc, char** argv)
         return 1;
     }
 
-    msg.hdr = (MessageHdr) { 0 };
-    msg.payload_len = 0;
+    msg_clear(&msg);
 
-    msg_recv(sockfd, &msg, 100);
+    int ret = msg_recv(sockfd, &msg, 1024);
+    if (!handle_recv_error(ret, MSGTYPE_AUTH_OK)) return 1;
+    msg_print(&msg);
+
     fprintf(stderr, "%s: %s\n", msg_type_to_str(msg.hdr.type), msg.payload);
+
+    free(msg.payload);
 
     return 0;
 }
@@ -330,6 +337,7 @@ int cmd_upload(int sockfd, char* progname, int argc, char** argv)
     FileSendStats stats = file_send(sockfd, info.filename, seq);
     printf("upload done: res=%zd\n", stats.error_code);
 
+    free(msg.payload);
     msg_clear(&msg);
     msg_recv_header(sockfd, &msg);
     if (msg.hdr.type == MSGTYPE_UPLOAD_FIN)
@@ -340,6 +348,8 @@ int cmd_upload(int sockfd, char* progname, int argc, char** argv)
     {
         printf("expected MSGTYPE_UPLOAD_FIN got %s!\n", msg_type_to_str(msg.hdr.type));
     }
+
+    free(msg.payload);
 
     return 0;
 }
@@ -352,6 +362,17 @@ static int cmd_download(int sockfd, char* progname, int argc, char** argv)
         return 1;
     }
 
+    char* local_filename = NULL;
+
+    if (argc >= 2)
+    {
+        local_filename = argv[1];
+    }
+    else
+    {
+        local_filename = argv[0];
+    }
+
     Message msg;
     int ret = load_token(msg.hdr.token);
     if (ret == -1)
@@ -362,6 +383,18 @@ static int cmd_download(int sockfd, char* progname, int argc, char** argv)
 
     FileInfo info = { 0 };
     strcpy(info.filename, argv[0]);
+
+    if ((ret = file_exists(local_filename)) == 1)
+    {
+        struct stat s;
+        if (lstat(local_filename, &s) == -1)
+        {
+            perror("lstat");
+            return 1;
+        }
+        info.size = s.st_size;
+        info.chunk_count = floor((float)info.size / CHUNK_SIZE);
+    }
 
     msg_init(&msg, MSGTYPE_DOWNLOAD_REQ, (void*)&info, sizeof(info));
     ret = msg_send(&msg, sockfd, NULL, 0);
@@ -404,17 +437,6 @@ static int cmd_download(int sockfd, char* progname, int argc, char** argv)
 
     FileInfo* rcvd_info = (FileInfo*)msg.payload;
     fileinfo_print(rcvd_info);
-
-    char* local_filename = NULL;
-
-    if (argc >= 2)
-    {
-        local_filename = argv[1];
-    }
-    else
-    {
-        local_filename = basename(rcvd_info->filename);
-    }
 
     strcpy(rcvd_info->filename, local_filename);
 

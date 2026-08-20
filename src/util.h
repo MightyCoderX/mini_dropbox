@@ -44,5 +44,6 @@ bool handle_recv_error(int ret, MessageType type);
 
 int get_user_root(uuid_t token, char* out);
 char* get_user_path(char* path, uuid_t token);
+int file_exists(const char* filename);
 
 #endif // !UTIL_H
