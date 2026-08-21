@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "file.h"
 #include "types.h"
 #include "util.h"
 
@@ -26,7 +25,6 @@ typedef struct {
 
 void chunk_init(Chunk* self, ChunkHdr hdr, byte* data);
 void chunk_print(Chunk* self);
-Chunk* chunk_next(FileInfo* info);
 ssize_t chunk_send(Chunk* self, int sockfd);
 ssize_t chunk_recv(int sockfd, Chunk* self);
 
