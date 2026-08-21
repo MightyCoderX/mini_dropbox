@@ -50,7 +50,8 @@ void fileinfo_print(FileInfo* info)
     printf("    filename: %s\n", info->filename);
 }
 
-FileSendStats file_send(int sockfd, char* filename, size_t start_chunk)
+FileSendStats file_send(int sockfd, char* filename, size_t start_chunk,
+    void (*on_chunk_sent)(Chunk* chunk))
 {
     FileInfo info;
     int res = fileinfo_from_filename(filename, &info);
@@ -105,8 +106,6 @@ FileSendStats file_send(int sockfd, char* filename, size_t start_chunk)
         Message msg = { 0 };
         while (msg.hdr.type != MSGTYPE_CHUNK_OK)
         {
-            printf("sending chunk #%zu\n", seq + 1);
-
             res = chunk_send(&chunk, sockfd);
             if (res < 0)
             {
@@ -121,7 +120,7 @@ FileSendStats file_send(int sockfd, char* filename, size_t start_chunk)
                 return (FileSendStats) { seq - 1, -6 };
             }
         }
-        printf("sent chunk #%zu/%zu\n", seq + 1, info.chunk_count);
+        if (on_chunk_sent) on_chunk_sent(&chunk);
 
         start += nbytes;
         seq++;
@@ -130,7 +129,7 @@ FileSendStats file_send(int sockfd, char* filename, size_t start_chunk)
     return (FileSendStats) { seq, 0 };
 }
 
-FileRecvStats file_recv(int sockfd, FileInfo* info)
+FileRecvStats file_recv(int sockfd, FileInfo* info, void (*on_chunk_recvd)(Chunk* chunk))
 {
     int fd = open(info->filename, O_WRONLY | O_CREAT, 0644);
     if (fd == -1)
@@ -194,7 +193,7 @@ FileRecvStats file_recv(int sockfd, FileInfo* info)
 
         write(fd, chunk.data, chunk.hdr.length);
 
-        printf("recvd chunk #%zu/%zu\n", seq + 1, info->chunk_count);
+        if (on_chunk_recvd) on_chunk_recvd(&chunk);
         chunk_free(&chunk);
         seq++;
     }

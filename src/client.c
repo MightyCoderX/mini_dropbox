@@ -1,10 +1,12 @@
 #include <math.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <arpa/inet.h>
@@ -77,6 +79,19 @@ void print_cmd_usage(char* progname, CommandID id);
 static char server_ip[INET_ADDRSTRLEN] = DEFAULT_SERVER_IP;
 static u16 server_port = DEFAULT_SERVER_PORT;
 
+static int width;
+static int height;
+
+void update_winsize(int sig)
+{
+    (void)sig;
+    struct winsize win;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &win);
+
+    width = win.ws_col;
+    height = win.ws_row;
+}
+
 int main(int argc, char** argv)
 {
     int opt;
@@ -112,9 +127,11 @@ int main(int argc, char** argv)
     {
     case CMD_HELP:
         break;
-    case CMD_AUTH:
     case CMD_DLOD:
     case CMD_ULOD:
+        update_winsize(0);
+        signal(SIGWINCH, update_winsize);
+    case CMD_AUTH:
     case CMD_LIST:
     case CMD_RMFI:
     case CMD_MDIR:
@@ -267,6 +284,48 @@ int cmd_auth(int sockfd, char* progname, int argc, char** argv)
     return 0;
 }
 
+static int progress_total = 0;
+#define ANSI_HIDECUR "\033[?25l"
+#define ANSI_SHOWCUR "\033[?25h"
+#define writeansi(ansi_code) write(1, ansi_code, sizeof(ansi_code) - 1)
+void progress_init(int total)
+{
+    progress_total = total;
+    writeansi(ANSI_HIDECUR);
+}
+
+void progress_deinit(void)
+{
+    writeansi(ANSI_SHOWCUR);
+}
+
+void progress_update(int curr)
+{
+    float percent = (float)curr / progress_total;
+
+    int progress_width = width - 9;
+    int curr_pos = progress_width * percent;
+
+    dprintf(1, "\r[");
+    for (int i = 0; i < progress_width; i++)
+    {
+        if (i <= curr_pos)
+        {
+            dprintf(1, "#");
+        }
+        else
+        {
+            dprintf(1, " ");
+        }
+    }
+    dprintf(1, "] %3d%% ", (int)floor(percent * 100));
+}
+
+void on_chunk(Chunk* chunk)
+{
+    progress_update(chunk->hdr.seq + 1);
+}
+
 int cmd_upload(int sockfd, char* progname, int argc, char** argv)
 {
     if (argc < 1)
@@ -334,8 +393,10 @@ int cmd_upload(int sockfd, char* progname, int argc, char** argv)
     seq = (size_t)(*msg.payload);
     printf("seq: %zu\n", seq);
 
-    FileSendStats stats = file_send(sockfd, info.filename, seq);
-    printf("upload done: res=%zd\n", stats.error_code);
+    progress_init(info.chunk_count);
+    FileSendStats stats = file_send(sockfd, info.filename, seq, on_chunk);
+    printf("\nupload done: res=%zd\n", stats.error_code);
+    progress_deinit();
 
     free(msg.payload);
     msg_clear(&msg);
@@ -384,14 +445,9 @@ static int cmd_download(int sockfd, char* progname, int argc, char** argv)
     FileInfo info = { 0 };
     strcpy(info.filename, argv[0]);
 
-    if ((ret = file_exists(local_filename)) == 1)
+    struct stat s;
+    if (lstat(local_filename, &s) != -1)
     {
-        struct stat s;
-        if (lstat(local_filename, &s) == -1)
-        {
-            perror("lstat");
-            return 1;
-        }
         info.size = s.st_size;
         info.chunk_count = floor((float)info.size / CHUNK_SIZE);
     }
@@ -440,8 +496,10 @@ static int cmd_download(int sockfd, char* progname, int argc, char** argv)
 
     strcpy(rcvd_info->filename, local_filename);
 
-    FileRecvStats stats = file_recv(sockfd, rcvd_info);
-    printf("download done: res=%zd\n", stats.error_code);
+    progress_init(rcvd_info->chunk_count);
+    FileRecvStats stats = file_recv(sockfd, rcvd_info, on_chunk);
+    printf("\ndownload done: res=%zd\n", stats.error_code);
+    progress_deinit();
 
     free(msg.payload);
     msg_init(&msg, MSGTYPE_DOWNLOAD_FIN, NULL, 0);

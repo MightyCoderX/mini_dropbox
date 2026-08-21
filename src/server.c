@@ -601,7 +601,7 @@ void handle_upload(int sockfd, User* user, Message* msg)
     session->state = SSTATE_RUNNING;
 
     printf("recving file %s\n", filename);
-    FileRecvStats stats = file_recv(sockfd, info);
+    FileRecvStats stats = file_recv(sockfd, info, NULL);
     printf("file recvd: error_code=%zd, chunks_recvd=%zu\n", stats.error_code,
         stats.last_chunk_recvd);
 
@@ -701,7 +701,7 @@ void handle_download(int sockfd, User* user, Message* msg)
     send_download_res(sockfd, (void*)info, sizeof(*info));
 
     printf("sending file %s\n", filename);
-    FileSendStats stats = file_send(sockfd, info->filename, start_chunk);
+    FileSendStats stats = file_send(sockfd, info->filename, start_chunk, NULL);
     if (stats.error_code < 0)
     {
         session->state = SSTATE_INTERRUPTED;

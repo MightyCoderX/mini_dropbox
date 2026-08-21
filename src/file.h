@@ -6,6 +6,7 @@
 
 #include <linux/limits.h>
 
+#include "chunk.h"
 #include "types.h"
 
 typedef struct {
@@ -21,12 +22,13 @@ typedef struct {
     size_t last_chunk_sent;
     ssize_t error_code;
 } FileSendStats;
-FileSendStats file_send(int sockfd, char* filename, size_t start_chunk);
+FileSendStats file_send(int sockfd, char* filename, size_t start_chunk,
+    void (*on_chunk_sent)(Chunk* chunk));
 
 typedef struct {
     size_t last_chunk_recvd;
     ssize_t error_code;
 } FileRecvStats;
-FileRecvStats file_recv(int sockfd, FileInfo* info);
+FileRecvStats file_recv(int sockfd, FileInfo* info, void (*on_chunk_recvd)(Chunk* chunk));
 
 #endif // !FILE_H
